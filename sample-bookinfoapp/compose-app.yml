@@ -1,0 +1,34 @@
+es:
+    image: elasticsearch:1.7
+    command: elasticsearch -Des.index.analysis.analyzer.default.type=keyword
+    ports:
+        - "29200:9200"
+        - "29300:9300"
+logstore.mybookstore.io:
+    image: logstash
+    command: logstash -e " input {udp {codec=>json port=>8092}} output {elasticsearch {hosts=>es index=>gremlin}} "
+    ports:
+        - "8092:8092/udp"
+    links:
+        - es
+details.mybookstore.io:
+    image: details
+reviews.mybookstore.io:
+    image: reviews
+productpage.mybookstore.io:
+    image: productpage
+    ports:
+        - "9876:9876"
+    links:
+        - logstore.mybookstore.io
+        - details.mybookstore.io
+        - reviews.mybookstore.io
+
+gateway.mybookstore.io:
+    image: gateway
+    ports:
+        - "9877:9876"
+        - "9080:9080"
+    links:
+        - logstore.mybookstore.io
+        - productpage.mybookstore.io

@@ -1,0 +1,40 @@
+{
+ "services": [
+    {
+      "name": "details",
+      "proxy": {
+	"bindhost" : "0.0.0.0",
+        "port": 9081,
+        "protocol": "http"
+      },
+      "loadbalancer": {
+        "defaulthosts": [
+          "details.mybookstore.io:9080"
+        ],
+        "mode": "roundrobin"
+      }
+    },
+    {
+      "name": "reviews",
+      "proxy": {
+	"bindhost" : "0.0.0.0",
+        "port": 9082,
+        "protocol": "http"
+      },
+      "loadbalancer": {
+        "defaulthosts": [
+          "reviews.mybookstore.io:9080"
+        ],
+        "mode": "roundrobin"
+      }
+    }
+  ],
+  "router": {
+      "name": "productpage",
+      "port": 9876,
+      "gremlinheader": "X-Gremlin-ID"
+  },
+  "loglevel" : "debug",
+  "logjson": true,
+  "logstash": "logstore.mybookstore.io:8092"
+}
