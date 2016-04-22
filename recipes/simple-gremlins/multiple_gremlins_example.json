@@ -1,0 +1,23 @@
+{
+   "gremlins" : [
+       {
+	   "scenario" : "delay_requests",
+	   "source" : "Client",
+	   "dest" : "Server",
+	   "headerpattern" : "test-delay-*",
+	   "delaytime" : "3s",
+	   "delayprobability" : 0.7,
+	   "delaydistribution" : "exponential"
+       },
+       {
+	   "scenario" : "overload_service",
+	   "source" : "Client2",
+	   "dest" : "Server",
+	   "headerpattern" : "test-overload-*",
+	   "delaytime" : "8s",
+	   "errorcode" : 500,
+	   "delayprobability" : 0.7,
+	   "abortprobability" : 0.5
+       }
+   ]
+}

@@ -1,0 +1,13 @@
+{
+    "services" : [
+	{ "name": "gateway", "serviceProxies": ["127.0.0.1:9877"] },
+	{ "name": "productpage", "serviceProxies": ["127.0.0.1:9876"] },
+	{ "name": "reviews"},
+	{ "name": "details"}
+    ],
+
+    "dependencies" : {
+	"gateway" : ["productpage"],
+        "productpage" : ["reviews", "details"]
+    }
+}

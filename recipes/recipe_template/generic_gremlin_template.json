@@ -1,0 +1,96 @@
+[
+    {
+        "scenario": "crash_service|partition_services|overload_service|delay_requests|delay_responses|abort_requests|abort_responses"
+        "comments" : "JSON schema for expressing a failure",
+        "source": "servicename;IF NULL, DEST SHOULD BE NOT NULL",
+        "dest": "servicename;IF NULL, DEST SHOULD BE NOT NULL",
+        "messagetype": "request|response|publish|subscribe",
+        "headerpattern": "regexpattern|*",
+        "bodypattern": "regexpattern|*",
+        "abortprobability": 0.0,
+        "abortdistribution": "uniform|normal|exponential",
+        "delayprobability": 0.0,
+        "delaydistribution": "uniform|normal|exponential",
+        "mangleprobability": 0.0,
+        "mangledistribution": "uniform|normal|exponential",
+        "delaytime": "1ms|1s|1m|1h",
+        "errorcode": -1,
+        "srcprobability" : 0.0,
+        "dstprobability" : 0.0,
+        "searchstring": "IGNORED",
+        "replacestring": "IGNORED",
+        "YOURCUSTOMFIELD" : "IGNORED",
+        "ANOTHERCUSTOMFIELD" : "IGNORED. atleast one of the abort|delay probability should be non 0. for partition_services, if srcprobability|dstprobability are not supplied, they default to 1. Errorcode for abort defaults to 1. Default delay is 1s"
+    },
+    {
+        "scenario" : "abort_requests",
+        "comments" : "Return error on all requests from source to destination. Atleast one of source or destination should be present. errorcode represents the HTTP errorcode to return to the caller. If errorcode is -1, the tcp connection to dest will be reset immediately. If source is omitted, requests from all services to given destination will be aborted with given errorcode. If destination is omitted, requests to any destination from source service will be aborted.",
+        "more_comments" : "You can customize the default error behavior by providing values for the fields above",
+        "source" : "webapp",
+        "dest" : "backend_service",
+        "errorcode" : 429,
+        "abortprobability" : 0.7,
+        "abortdistribution" : "normal",
+        "headerpattern" : "gremlin-test-abortreq-*"
+    },
+    {
+        "scenario" : "abort_responses",
+        "comments" : "Same as abort_requests, but acts after receiving the response from dest, but before passing it on to source. This might come in handy, if the requests are non idempotent, where you may want a change to be made in the backend, but fake a failure that happens after the backend has completed the change",
+        "more_comments" : "You can customize the default error behavior by providing values for the fields above",
+        "source" : "webapp",
+        "dest" : "backend_service",
+        "errorcode" : 429,
+        "abortprobability" : 0.7,
+        "abortdistribution" : "normal",
+        "headerpattern" : "gremlin-test-abortresp-*"
+    },
+    {
+        "scenario" : "delay_requests",
+        "comments" : "Delay all requests from source to destination. Atleast one of source or destination should be present.  delaytime is expressed as a string based on Golang's ParseDuration function. (https://golang.org/pkg/time/#ParseDuration). A duration string is a possibly signed sequence of decimal numbers, each with optional fraction and a unit suffix, such as '300ms'. Valid time units are 'ns', 'us', 'ms', 's', 'm', 'h'. If source is omitted, requests from all services to given destination will be delayed with given delaytime. If destination is omitted, requests to any destination from source service will be delayed.",
+        "more_comments" : "You can customize the default error behavior by providing values for the fields above",
+        "source" : "webapp",
+        "dest" : "backend_service",
+        "delayprobability" : 0.7,
+        "delaydistribution" : "uniform",
+        "headerpattern" : "gremlin-test-delayreq-*"
+    },
+    {
+        "scenario" : "delay_responses",
+        "comments" : "Same as abort_requests, but acts after receiving the response from dest, but before passing it on to source",
+        "more_comments" : "You can customize the default error behavior by providing values for the fields above",
+        "source" : "webapp",
+        "dest" : "backend_service",
+        "delayprobability" : 0.7,
+        "delaydistribution" : "uniform",
+        "headerpattern" : "gremlin-test-delayresp-*"
+    },
+    {
+        "scenario" : "crash_service",
+        "comments" : "crash a destination service. All connections will be reset.",
+        "more_comments" : "You can customize the default error behavior by providing values for the fields above",
+        "dest" : "backend_service",
+        "headerpattern" : "gremlin-test-crash-*"
+    },
+    {
+        "scenario" : "partition_services",
+        "comments" : "Fail all communications between a given pair of services. srcprobability and dstprobability are optional",
+        "more_comments" : "You can customize the default error behavior by providing values for the fields above",
+        "source" : "src_service",
+        "dest" : "dst_service",
+        "srcprobability" : 0.8,
+        "dstprobability" : 0.6,
+        "headerpattern" : "gremlin-test-partition-*"
+    },
+    {
+        "scenario" : "overload_service",
+        "comments" : "Fake overload of a target service. Requests will be delayed, or will return error or both, based on the probability values provided. Default probability is 0.5 for delay and abort. If source is provided, only emulate overload scenario for the source service to target",
+        "more_comments" : "You can customize the default error behavior by providing values for the fields above",
+        "source" : "src_service or OMIT field",
+        "dest" : "target_service",
+        "delaytime" : "8s",
+        "delayprobability" : 0.7,
+        "errorcode" : 503,
+        "abortprobability" : 0.6,
+        "headerpattern" : "gremlin-test-overload-*"
+    }
+]

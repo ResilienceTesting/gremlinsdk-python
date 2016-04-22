@@ -1,0 +1,11 @@
+{
+   "gremlins" : [
+       {
+	   "scenario" : "delay_requests",
+	   "source" : "productpage",
+	   "destination" : "reviews",
+	   "headerpattern" : "testUser-timeout-*",
+	   "delaytime" : "8s"
+       }
+   ]
+}
