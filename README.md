@@ -78,7 +78,7 @@ testID = fg.start_new_test()
 
 ##Inject some load
 for i in range(1000):
-    requests.get("http://myapp.com/gateway",
+    requests.get("http://foo.com/A",
         headers={"X-Gremlin-ID": "overload-req-%d" % i}
 
 ##Run assertions
