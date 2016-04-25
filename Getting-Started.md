@@ -35,6 +35,8 @@ instead of randomly injecting failures without any useful validation.
 
   * Setup the simple microservice application
 
+    ![A Simple Bookinfo App](https://github.com/ResilienceTesting/gremlinsdk-python/bookinfoapp.png)
+
     For trying out some of the recipes, we will be using a simple bookinfo
     application made of three microservices and an API gateway service
     (_gateway_) facing the user. The API gateway calls the _productpage_
@@ -85,10 +87,14 @@ Open Postman and access the URL http://localhost:9180/productpage to make sure t
 
 Lets run a very simple Gremlin recipe that fakes the overload of the
 _reviews_ service (without needing to crash the service) and checks if the
-_productpage_ service handles this scenario using the timeout pattern.  As
-noted earlier, this is a very contrived example meant for the purpose of
-illustration. In real world, you would be using a circuit breaker pattern
-to recover from such failures.
+_productpage_ service handles this scenario using the timeout pattern.  The
+figure below illustrates the failure scenario and shows both the expected
+and the unexpected behavior of the application. As noted earlier, this is a
+very contrived example meant for the purpose of illustration. In real
+world, you would be using a circuit breaker pattern to recover from such
+failures.
+
+![Expected & unexpected outcomes during failure](https://github.com/ResilienceTesting/gremlinsdk-python/bookinfoapp-failure.png)
 
 While it is possible to express Gremlin recipes purely in Python code, for
 the purpose of this tutorial, we will be using a simple generic test

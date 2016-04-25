@@ -6,6 +6,10 @@ custom designed failure scenarios. This SDK is a set of abstractions
 that enable developers to build and execute custom failure scenarios,
 and validate the application behavior during the failure event.
 
+### How it works
+
+![Gremlin Architecture](https://github.com/ResilienceTesting/gremlinsdk-python/gremlin-testing-architecture.png)
+
 Gremlin relies on the service proxy (a dependency injection pattern)
 to inject failures into the API calls between microservices. Gremlin
 expects the service proxy to expose a set of well-defined low-level
