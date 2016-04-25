@@ -1,15 +1,17 @@
-This SDK is agnostic of the service proxy implementation. There are several
-ways in which you could implement a service proxy. Some well known
-approaches include sidecar-based solutions such as Nginx managed by
-[Confd](https://github.com/kelseyhightower/confd), [Ambassador containers
-in
-Kubernetes](http://blog.kubernetes.io/2015/06/the-distributed-system-toolkit-patterns.html),
-[AirBnB SmartStack](https://github.com/airbnb/synapse), [Netflix
-Prana](https://github.com/Netflix/Prana/), library-based options such
-as[Netflix Ribbon](https://github.com/Netflix/Ribbon), or API gateway
+Gremlin is agnostic of the service proxy implementation. It only requires
+the proxy to be capable of injecting the three basic types of faults into
+API calls between microservices.
+
+There are several ways in which you could implement a service proxy. Some
+well known approaches include sidecar-based solutions such as Nginx managed
+by [Confd](https://github.com/kelseyhightower/confd),
+[Ambassador containers in Kubernetes](http://blog.kubernetes.io/2015/06/the-distributed-system-toolkit-patterns.html),
+[AirBnB SmartStack](https://github.com/airbnb/synapse),
+[Netflix Prana](https://github.com/Netflix/Prana/), library-based options
+such as[Netflix Ribbon](https://github.com/Netflix/Ribbon), or API gateway
 patterns such as Mashape's [Kong](https://github.com/Mashape/Kong), and
-cloud-hosted solutions such as [IBM Service
-Proxy](https://developer.ibm.com/bluemix/2016/04/13/service-proxy-to-balance-monitor-and-test-your-microservices/).
+cloud-hosted solutions such as
+[IBM Service Proxy](https://developer.ibm.com/bluemix/2016/04/13/service-proxy-to-balance-monitor-and-test-your-microservices/).
 
 The only requirement for Gremlin is that the service proxy should support
 fault injection, and should be programmable over a REST API. A reference
