@@ -47,7 +47,7 @@ fg.clear_rules_from_all_proxies()
 fg.setup_failures(gremlins)
 testID = fg.start_new_test()
 
-print ('Use `postman` to inject test requests,\n\twith HTTP header X-Gremlin-ID: test-overload-[NUM]\n\tpress Enter key to continue to validation phase')
+print ('Use `postman` to inject test requests,\n\twith HTTP header X-Gremlin-ID: <header-value>\n\tpress Enter key to continue to validation phase')
 a = sys.stdin.read(1)
 sys.exit(0)
 
