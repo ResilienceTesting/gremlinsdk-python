@@ -35,7 +35,7 @@ instead of randomly injecting failures without any useful validation.
 
   * Setup the simple microservice application
 
-    ![A Simple Bookinfo App](https://github.com/ResilienceTesting/gremlinsdk-python/bookinfoapp.png)
+    ![A Simple Bookinfo App](https://github.com/ResilienceTesting/gremlinsdk-python/blob/master/bookinfoapp.png)
 
     For trying out some of the recipes, we will be using a simple bookinfo
     application made of three microservices and an API gateway service
@@ -94,7 +94,7 @@ very contrived example meant for the purpose of illustration. In real
 world, you would be using a circuit breaker pattern to recover from such
 failures.
 
-![Expected & unexpected outcomes during failure](https://github.com/ResilienceTesting/gremlinsdk-python/bookinfoapp-failure.png)
+![Expected & unexpected outcomes during failure](https://github.com/ResilienceTesting/gremlinsdk-python/blob/master/bookinfoapp-failure.png)
 
 While it is possible to express Gremlin recipes purely in Python code, for
 the purpose of this tutorial, we will be using a simple generic test

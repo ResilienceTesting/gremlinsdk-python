@@ -24,7 +24,8 @@ dependency graph between microservices is the same.
 
 ### How it works
 
-![Gremlin Architecture](https://github.com/ResilienceTesting/gremlinsdk-python/gremlin-testing-architecture.png)
+![Gremlin Architecture][gremlin-arch]
+[gremlin-arch]: https://github.com/ResilienceTesting/gremlinsdk-python/raw/master/gremlin-testing-architecture.png  "Architecture of Gremlin Resilience Testing Framework"
 
 Gremlin relies on the service proxy (a dependency injection pattern) to
 inject failures into the API calls between microservices. Gremlin expects
@@ -40,7 +41,7 @@ expected to be forwarded to Elasticsearch.
 Gremlin is designed to be agnostic of the service proxy implementation, as
 long as it supports the fundamental fault injection primitives (abort,
 delay and mangle). See the
-[proxy interface](https://github.com/ResilienceTesting/gremlinsdk-python/ProxyInterface.md)
+[proxy interface](https://github.com/ResilienceTesting/gremlinsdk-python/blob/master/ProxyInterface.md)
 document for details on the fault injection primitives. The reference
 service proxy implementation
 [gremlinproxy](https://github.com/ResilienceTesting/gremlinproxy) is a
@@ -109,5 +110,7 @@ assert result.success
 What if B had a timeout of 100ms when calling C? This assertion would
 fail. This is not an unrealistic scenario. In fact, this is quite common in
 microservice-based applications, because each service is being developed by
-different developers/teams. A and B have conflicting failure recovery
-policies.
+different developers/teams. A and B have conflicting failure recovery policies.
+
+=======
+For a step-by-step tutorial on Gremlin, checkout the [getting started](https://github.com/ResilienceTesting/gremlinsdk-python/blob/master/Getting-Started.md) page.
