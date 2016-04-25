@@ -8,7 +8,8 @@ and validate the application behavior during the failure event.
 
 ### How it works
 
-![Gremlin Architecture](https://github.com/ResilienceTesting/gremlinsdk-python/gremlin-testing-architecture.png)
+![Gremlin Architecture][gremlin-arch]
+[gremlin-arch]: https://github.com/ResilienceTesting/gremlinsdk-python/raw/master/gremlin-testing-architecture.png  "Architecture of Gremlin Resilience Testing Framework"
 
 Gremlin relies on the service proxy (a dependency injection pattern)
 to inject failures into the API calls between microservices. Gremlin
@@ -25,7 +26,7 @@ Elasticsearch.
 Gremlin is designed to be agnostic of the service proxy implementation, as
 long as it supports the fundamental fault injection primitives (abort,
 delay and mangle). See the
-[proxy interface](https://github.com/ResilienceTesting/gremlinsdk-python/ProxyInterface.md)
+[proxy interface](https://github.com/ResilienceTesting/gremlinsdk-python/blob/master/ProxyInterface.md)
 document for details on the fault injection primitives. The reference
 service proxy implementation
 [gremlinproxy](https://github.com/ResilienceTesting/gremlinproxy) is a
@@ -42,4 +43,4 @@ patterns such as Mashape's [Kong](https://github.com/Mashape/Kong), and
 cloud-hosted solutions such as
 [IBM Service Proxy](https://developer.ibm.com/bluemix/2016/04/13/service-proxy-to-balance-monitor-and-test-your-microservices/).
 
-For a step-by-step tutorial on Gremlin, checkout the [getting started](https://github.com/ResilienceTesting/gremlinsdk-python/Getting-Started.md) page.
+For a step-by-step tutorial on Gremlin, checkout the [getting started](https://github.com/ResilienceTesting/gremlinsdk-python/blob/master/Getting-Started.md) page.
