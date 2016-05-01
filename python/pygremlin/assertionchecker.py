@@ -117,7 +117,7 @@ class AssertionChecker(object):
         return data["hits"]["total"] != 0 and len(data["hits"]["hits"]) != 0
 
     #was ProxyErrorsBad
-    def check_no_proxy_errors(self, **args):
+    def check_no_proxy_errors(self, **kwargs):
         """
         Helper method to determine if the proxies logged any major errors related to the functioning of the proxy itself
         """
@@ -160,11 +160,11 @@ class AssertionChecker(object):
         })
         return GremlinTestResult(False, data)
 
-    def check_bounded_response_time(self, **args):
-        assert 'source' in args and 'dest' in args and 'max_latency' in args
-        dest = args['dest']
-        source = args['source']
-        max_latency = _parse_duration(args['max_latency'])
+    def check_bounded_response_time(self, **kwargs):
+        assert 'source' in kwargs and 'dest' in kwargs and 'max_latency' in kwargs
+        dest = kwargs['dest']
+        source = kwargs['source']
+        max_latency = _parse_duration(kwargs['max_latency'])
         data = self._es.search(body={
             "size": max_query_results,
             "query": {
@@ -206,7 +206,7 @@ class AssertionChecker(object):
                     print errormsg
         return GremlinTestResult(result, errormsg)
 
-    def check_http_success_status(self, **args):
+    def check_http_success_status(self, **kwargs):
         data = self._es.search(body={
             "size": max_query_results,
             "query": {
@@ -231,12 +231,12 @@ class AssertionChecker(object):
         return GremlinTestResult(result, errormsg)
 
     ##check if the interaction between a given pair of services resulted in the required response status
-    def check_http_status(self, **args):
-        assert 'source' in args and 'dest' in args and 'status' in args and 'req_id' in args
-        source = args['source']
-        dest = args['dest']
-        status = args['status']
-        req_id = args['req_id']
+    def check_http_status(self, **kwargs):
+        assert 'source' in kwargs and 'dest' in kwargs and 'status' in kwargs and 'req_id' in kwargs
+        source = kwargs['source']
+        dest = kwargs['dest']
+        status = kwargs['status']
+        req_id = kwargs['req_id']
         data = self._es.search(body={
             "size": max_query_results,
             "query": {
@@ -267,19 +267,15 @@ class AssertionChecker(object):
                 result = False
         return GremlinTestResult(result, errormsg)
 
-    def check_reachability(self, **args):
-        # FIXME: implement request tracing/reachability assertion
-        # ensure that at least some requests requests search dest from source
-        return GremlinTestResult(True, "")
 
-    def check_bounded_retries(self, **args):
-        assert 'source' in args and 'dest' in args and 'retries' in args
-        source = args['source']
-        dest = args['dest']
-        retries = args['retries']
-        wait_time = args.pop('wait_time', None)
-        errdelta = args.pop('errdelta', datetime.timedelta(milliseconds=10))
-        by_uri = args.pop('by_uri', False)
+    def check_bounded_retries(self, **kwargs):
+        assert 'source' in kwargs and 'dest' in kwargs and 'retries' in kwargs
+        source = kwargs['source']
+        dest = kwargs['dest']
+        retries = kwargs['retries']
+        wait_time = kwargs.pop('wait_time', None)
+        errdelta = kwargs.pop('errdelta', datetime.timedelta(milliseconds=10))
+        by_uri = kwargs.pop('by_uri', False)
 
         if self.debug:
             print 'in bounded retries (%s, %s, %s)' % (source, dest, retries)
@@ -347,12 +343,12 @@ class AssertionChecker(object):
                         print errormsg
         return GremlinTestResult(result, errormsg)
 
-    def check_circuit_breaker(self, **args): #dest, max_attempts, timeout, sthreshold):
-        assert 'dest' in args and 'source' in args and 'max_attempts' in args and 'reset_time' in args
-        dest = args['dest']
-        source = args['source']
-        max_attempts = args['max_attempts']
-        reset_time = args['reset_time']
+    def check_circuit_breaker(self, **kwargs): #dest, max_attempts, timeout, sthreshold):
+        assert 'dest' in kwargs and 'source' in kwargs and 'max_attempts' in kwargs and 'reset_time' in kwargs
+        dest = kwargs['dest']
+        source = kwargs['source']
+        max_attempts = kwargs['max_attempts']
+        reset_time = kwargs['reset_time']
 
         # TODO: this has been tested for thresholds but not for recovery
         # timeouts
@@ -433,17 +429,17 @@ class AssertionChecker(object):
         # pprint.pprint(allpairs)
         return GremlinTestResult(result, "")
 
-    def check_assertion(self, name=None, **args):
+    def check_assertion(self, name=None, **kwargs):
         # assertion is something like {"name": "bounded_response_time",
         #                              "service": "productpage",
         #                              "max_latency": "100ms"}
 
         assert name is not None and name in self.functiondict
-        gremlin_test_result = self.functiondict[name](**args)
+        gremlin_test_result = self.functiondict[name](**kwargs)
         if self.debug and not gremlin_test_result.success:
             print gremlin_test_result.errormsg
 
-        return AssertionResult(name, str(args), gremlin_test_result.success, gremlin_test_result.errormsg)
+        return AssertionResult(name, str(kwargs), gremlin_test_result.success, gremlin_test_result.errormsg)
 
     def check_assertions(self, checklist, all=False):
         """Check a set of assertions
