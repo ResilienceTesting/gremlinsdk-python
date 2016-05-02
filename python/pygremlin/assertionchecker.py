@@ -107,7 +107,8 @@ class AssertionChecker(object):
             'http_status' : self.check_http_status,
             'reachability' : self.check_reachability,
             'bounded_retries' : self.check_bounded_retries,
-            'circuit_breaker' : self.check_circuit_breaker
+            'circuit_breaker' : self.check_circuit_breaker,
+            'at_most_requests': self.check_at_most_requests
         }
 
     def _check_non_zero_results(self, data):
@@ -267,6 +268,65 @@ class AssertionChecker(object):
                 result = False
         return GremlinTestResult(result, errormsg)
 
+    def check_at_most_requests(self, source, dest, num_requests, **kwargs):
+        """
+        Check that source service sent at most num_request to the dest service
+
+        :return:
+        """
+        # TODO: should this be grouped by instance as well?
+        # Or just between 2 logical services?
+
+        # Fetch requests for src->dst
+        data = self._es.search(body={
+            "size": max_query_results,
+            "query": {
+                "filtered": {
+                    "query": {
+                        "match_all": {}
+                    },
+                    "filter": {
+                        "bool": {
+                            "must": [
+                                {"term": {"msg": "Request"}},
+                                {"term": {"source": source}},
+                                {"term": {"dest": dest}},
+                                {"term": {"protocol": "http"}},
+                                {"term": {"testid": self._id}}
+                            ]
+                        }
+                    }
+                }
+            },
+            "aggs": {
+                # Need size, otherwise only top buckets are returned
+                "size": max_query_results,
+                "byid": {
+                    "terms": {
+                        "field": "reqID",
+                    }
+                }
+            }
+        })
+
+        if self.debug:
+            pprint.pprint(data)
+
+        result = True
+        errormsg = ""
+
+        # Check number of requests in each bucket
+        for bucket in data["aggregations"]["byid"]["buckets"]:
+            if bucket["doc_count"] > (num_requests + 1):
+                errormsg = "{} -> {} - expected {} requests, but found {} "\
+                         "requests for id {}".format(
+                    source, dest, num_requests, bucket['doc_count'] - 1,
+                    bucket['key'])
+                result = False
+                if self.debug:
+                    print errormsg
+                return GremlinTestResult(result, errormsg)
+        return GremlinTestResult(result, errormsg)
 
     def check_bounded_retries(self, **kwargs):
         assert 'source' in kwargs and 'dest' in kwargs and 'retries' in kwargs
