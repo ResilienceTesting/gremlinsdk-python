@@ -1,6 +1,6 @@
 [
     {
-        "scenario": "crash_service|partition_services|overload_service|delay_requests|delay_responses|abort_requests|abort_responses"
+        "scenario": "crash_service|partition_services|overload_service|delay_requests|delay_responses|abort_requests|abort_responses",
         "comments" : "JSON schema for expressing a failure",
         "source": "servicename;IF NULL, DEST SHOULD BE NOT NULL",
         "dest": "servicename;IF NULL, DEST SHOULD BE NOT NULL",
