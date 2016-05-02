@@ -271,11 +271,12 @@ class AssertionChecker(object):
     def check_at_most_requests(self, source, dest, num_requests, **kwargs):
         """
         Check that source service sent at most num_request to the dest service
-
+        :param source the source service name
+        :param dest the destination service name
+        :param num_requests the maximum number of requests that we expect
         :return:
         """
-        # TODO: should this be grouped by instance as well?
-        # Or just between 2 logical services?
+        # TODO: Does the proxy support logging of instances so that grouping by instance is possible?
 
         # Fetch requests for src->dst
         data = self._es.search(body={
@@ -320,8 +321,8 @@ class AssertionChecker(object):
             if bucket["doc_count"] > (num_requests + 1):
                 errormsg = "{} -> {} - expected {} requests, but found {} "\
                          "requests for id {}".format(
-                    source, dest, num_requests, bucket['doc_count'] - 1,
-                    bucket['key'])
+                            source, dest, num_requests, bucket['doc_count'] - 1,
+                            bucket['key'])
                 result = False
                 if self.debug:
                     print errormsg
