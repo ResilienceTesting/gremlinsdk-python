@@ -2,7 +2,7 @@
    "gremlins" : [
        {
 	   "scenario" : "delay_requests",
-	   "source" : "Client",
+	   "source" : "Client1",
 	   "dest" : "Server",
 	   "headerpattern" : "test-delay-*",
 	   "delaytime" : "3s",

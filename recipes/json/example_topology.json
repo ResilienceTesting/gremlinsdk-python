@@ -1,0 +1,11 @@
+{
+    "services" : [
+	    { "name": "Client1", "service_proxies": ["127.0.0.1:9876"] },
+	    { "name": "Client2", "service_proxies": ["127.0.0.1:9877"] },
+	    { "name": "Server"}
+    ],
+    "dependencies" : {
+	    "Client1" : ["Server"]
+	    "Client2" : ["Server"]
+    }
+}

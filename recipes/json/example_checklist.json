@@ -1,0 +1,11 @@
+{
+    "log_server" : "192.168.64.2:29200",
+    "checks" : [
+	{
+	    "name" : "bounded_response_time",
+	    "source" : "Client1",
+	    "dest" : "Server",
+	    "max_latency" : "100ms"
+	}
+    ]
+}
