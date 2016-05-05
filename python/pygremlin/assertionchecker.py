@@ -404,12 +404,17 @@ class AssertionChecker(object):
                         print errormsg
         return GremlinTestResult(result, errormsg)
 
-    def check_circuit_breaker(self, **kargs): #dest, max_attempts, reset_time, sthreshold):
-        assert 'dest' in args and 'source' in args and 'max_attempts' in args and 'reset_time' in args
+    def check_circuit_breaker(self, **kargs): #dest, closed_attempts, reset_time, halfopen_attempts):
+        assert 'dest' in args and 'source' in args and 'closed_attempts' in args and 'reset_time' in args
+
         dest = kargs['dest']
         source = kargs['source']
-        max_attempts = kargs['max_attempts']
+        close_attempts = kargs['close_attempts']
         reset_time = kargs['reset_time']
+        if 'halfopen_attemps' not in args:
+            halfopen_attempts = 1
+        else:
+            halfopen_attempts = kargs['halfopen_attempts']
 
         # TODO: this has been tested for thresholds but not for recovery
         # timeouts
@@ -475,7 +480,7 @@ class AssertionChecker(object):
                         count += 1
                         # print(count)
                         # Trip CB, go to open state
-                        if count > max_attempts:
+                        if count > close_attempts:
                             tripped = isodate.parse_datetime(req['_source']["ts"])
                             successes = 0
                     elif (req['_source']["msg"] == "Response" and req['_source']["status"] == 200):
@@ -484,7 +489,7 @@ class AssertionChecker(object):
                             # We got a success!
                             successes += 1
                             # If over threshold, return to closed state
-                            if successes > sthreshold:
+                            if successes > halfopen_attempts:
                                 count = 0
                     else:
                         print("Unknown state", req['_source'])
