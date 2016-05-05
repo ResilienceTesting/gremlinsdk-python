@@ -98,10 +98,10 @@ failures.
 
 While it is possible to express Gremlin recipes purely in Python code, for
 the purpose of this tutorial, we will be using a simple generic test
-harness (```gremlinsdk-python/recipes/run_recipe.py```) that takes as input
+harness (```gremlinsdk-python/recipes/json/run_recipe_json.py```) that takes as input
 three JSON files: the application's dependency graph, the failure scenario
 and the assertions. You will find the following three JSON files in the
-```gremlinsdk-python/recipes``` folder:
+```gremlinsdk-python/recipes/json``` folder:
 
  + ```topology.json``` describes the applicaton topology for the bookinfo application that we setup earlier.
  + ```gremlins.json``` describes the failure scenario, wherein the
@@ -130,7 +130,7 @@ and the assertions. You will find the following three JSON files in the
 Lets run the recipe.
 
 ```bash
-cd gremlinsdk-python/recipes; ./run_recipe.py topology.json gremlins.json checklist.json
+cd gremlinsdk-python/recipes/json; ./run_recipe_json.py topology.json gremlins.json checklist.json
 ```
 
 You should see the following output:
