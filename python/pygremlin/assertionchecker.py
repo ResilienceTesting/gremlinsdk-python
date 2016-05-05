@@ -404,12 +404,12 @@ class AssertionChecker(object):
                         print errormsg
         return GremlinTestResult(result, errormsg)
 
-    def check_circuit_breaker(self, **kwargs): #dest, max_attempts, timeout, sthreshold):
-        assert 'dest' in kwargs and 'source' in kwargs and 'max_attempts' in kwargs and 'reset_time' in kwargs
-        dest = kwargs['dest']
-        source = kwargs['source']
-        max_attempts = kwargs['max_attempts']
-        reset_time = kwargs['reset_time']
+    def check_circuit_breaker(self, **kargs): #dest, max_attempts, reset_time, sthreshold):
+        assert 'dest' in args and 'source' in args and 'max_attempts' in args and 'reset_time' in args
+        dest = kargs['dest']
+        source = kargs['source']
+        max_attempts = kargs['max_attempts']
+        reset_time = kargs['reset_time']
 
         # TODO: this has been tested for thresholds but not for recovery
         # timeouts
@@ -444,6 +444,7 @@ class AssertionChecker(object):
             }
         })
         result = True
+        errormsg = ""
         reset_time = _parse_duration(reset_time)
         for bucket in allpairs["aggregations"]["bysource"]["buckets"]:
             service = bucket["key"]
@@ -464,6 +465,7 @@ class AssertionChecker(object):
                         if req['_source']["msg"] == "Request":
                             if self.debug:
                                 print("Service {} failed to trip circuit breaker")
+                            errormsg = "%s -> %s - expected no requests in open state but found one %s" % (source, dest, req['_source'])
                             result = False
                 else:
                     if (req['_source']["msg"] == "Response" and req['_source']["status"] != 200) or\
