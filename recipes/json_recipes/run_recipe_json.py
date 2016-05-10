@@ -51,8 +51,8 @@ print ('Use `postman` to inject test requests,\n\twith HTTP header X-Gremlin-ID:
 a = sys.stdin.read(1)
 sys.exit(0)
 
-#ac = AssertionChecker(checklist['log_server'], testID, debug=debugMode)
-#results = ac.checkAssertions(checklist)
+ac = AssertionChecker(checklist['log_server'], testID, debug=debugMode)
+results = ac.checkAssertions(checklist)
 exit_status = 0
 
 for check in results:
