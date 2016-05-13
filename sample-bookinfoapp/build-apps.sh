@@ -5,7 +5,11 @@
 #gunicorn -w 1 -b 0.0.0.0:19080 --reload --access-logfile prod.log --error-logfile prod.log productpage:app >>prod.log 2>&1 &
 
 set -o errexit
-
+##build the gremlinproxy
+docker run -v "$PWD":"/go/bin" -it golang:1.6 go get -u github.com/ResilienceTesting/gremlinproxy
+cp gremlinproxy gateway/
+cp gremlinproxy productpage/
+rm gremlinproxy
 pushd productpage
   docker build -t productpage .
 popd
