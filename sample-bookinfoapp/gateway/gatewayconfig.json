@@ -8,7 +8,7 @@
         "protocol": "http"
       },
       "loadbalancer": {
-        "defaulthosts": [
+        "hosts": [
           "productpage.mybookstore.io:9080"
         ],
         "mode": "roundrobin"
