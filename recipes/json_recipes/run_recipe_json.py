@@ -52,7 +52,7 @@ a = sys.stdin.read(1)
 sys.exit(0)
 
 ac = AssertionChecker(checklist['log_server'], testID, debug=debugMode)
-results = ac.checkAssertions(checklist)
+results = ac.check_assertions(checklist)
 exit_status = 0
 
 for check in results:
