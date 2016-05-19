@@ -105,7 +105,7 @@ class AssertionChecker(object):
             'bounded_response_time' : self.check_bounded_response_time,
             'http_success_status' : self.check_http_success_status,
             'http_status' : self.check_http_status,
-            'reachability' : self.check_reachability,
+#            'reachability' : self.check_reachability,
             'bounded_retries' : self.check_bounded_retries,
             'circuit_breaker' : self.check_circuit_breaker,
             'at_most_requests': self.check_at_most_requests
@@ -191,7 +191,6 @@ class AssertionChecker(object):
 
         result = True
         errormsg = ""
-
         if not self._check_non_zero_results(data):
             result = False
             errormsg = "No log entries found"
@@ -224,6 +223,11 @@ class AssertionChecker(object):
             }})
         result = True
         errormsg = ""
+        if not self._check_non_zero_results(data):
+            result = False
+            errormsg = "No log entries found"
+            return GremlinTestResult(result, errormsg)
+
         for message in data["hits"]["hits"]:
             if message['_source']["status"] != 200:
                 if self.debug:
@@ -259,8 +263,14 @@ class AssertionChecker(object):
                     }
                 }
             }})
+
         result = True
         errormsg = ""
+        if not self._check_non_zero_results(data):
+            result = False
+            errormsg = "No log entries found"
+            return GremlinTestResult(result, errormsg)
+
         for message in data["hits"]["hits"]:
             if message['_source']["status"] != status:
                 if self.debug:
@@ -315,6 +325,10 @@ class AssertionChecker(object):
 
         result = True
         errormsg = ""
+        if not self._check_non_zero_results(data):
+            result = False
+            errormsg = "No log entries found"
+            return GremlinTestResult(result, errormsg)
 
         # Check number of requests in each bucket
         for bucket in data["aggregations"]["byid"]["buckets"]:
@@ -341,7 +355,7 @@ class AssertionChecker(object):
         if self.debug:
             print 'in bounded retries (%s, %s, %s)' % (source, dest, retries)
 
-        allreq = self._es.search(body={
+        data = self._es.search(body={
             "size": max_query_results,
             "query": {
                 "filtered": {
@@ -370,13 +384,17 @@ class AssertionChecker(object):
         })
 
         if self.debug:
-            pprint.pprint(allreq)
+            pprint.pprint(data)
 
         result = True
         errormsg = ""
+        if not self._check_non_zero_results(data):
+            result = False
+            errormsg = "No log entries found"
+            return GremlinTestResult(result, errormsg)
 
         # Check number of req first
-        for bucket in allreq["aggregations"]["byid"]["buckets"]:
+        for bucket in data["aggregations"]["byid"]["buckets"]:
             if bucket["doc_count"] > (num + 1):
                 errormsg = "{} -> {} - expected {} retries, but found {} retries for request {}".format(
                     source, dest, retries, bucket['doc_count']-1, bucket['key'])
@@ -389,9 +407,9 @@ class AssertionChecker(object):
  
         wait_time = _parse_duration(wait_time)
         # Now we have to check the timestamps
-        for bucket in allreq["aggregations"]["byid"]["buckets"]:
+        for bucket in data["aggregations"]["byid"]["buckets"]:
             req_id = bucket["key"]
-            req_seq = _get_by_id(req_id, allreq["hits"]["hits"])
+            req_seq = _get_by_id(req_id, data["hits"]["hits"])
             req_seq.sort(key=lambda x: isodate.parse_datetime(x['_source']["ts"]))
             for i in range(len(req_seq) - 1):
                 observed = isodate.parse_datetime(
@@ -402,23 +420,25 @@ class AssertionChecker(object):
                     result = False
                     if self.debug:
                         print errormsg
+                    break
         return GremlinTestResult(result, errormsg)
 
-    def check_circuit_breaker(self, **kargs): #dest, closed_attempts, reset_time, halfopen_attempts):
-        assert 'dest' in args and 'source' in args and 'closed_attempts' in args and 'reset_time' in args
+    def check_circuit_breaker(self, **kwargs): #dest, closed_attempts, reset_time, halfopen_attempts):
+        assert 'dest' in kwargs and 'source' in kwargs and 'closed_attempts' in kwargs and 'reset_time' in kwargs and 'headerprefix' in kwargs
 
-        dest = kargs['dest']
-        source = kargs['source']
-        close_attempts = kargs['close_attempts']
-        reset_time = kargs['reset_time']
-        if 'halfopen_attemps' not in args:
+        dest = kwargs['dest']
+        source = kwargs['source']
+        closed_attempts = kwargs['closed_attempts']
+        reset_time = kwargs['reset_time']
+        headerprefix = kwargs['headerprefix']
+        if 'halfopen_attempts' not in kwargs:
             halfopen_attempts = 1
         else:
-            halfopen_attempts = kargs['halfopen_attempts']
+            halfopen_attempts = kwargs['halfopen_attempts']
 
         # TODO: this has been tested for thresholds but not for recovery
         # timeouts
-        allpairs = self._es.search(body={
+        data = self._es.search(body={
             "size": max_query_results,
             "query": {
                 "filtered": {
@@ -430,7 +450,7 @@ class AssertionChecker(object):
                             "must": [
                                 {"term": {"source": source}},
                                 {"term": {"dest": dest}},
-                                {"term": {"testid": self._id}}
+                                {"prefix": {"reqID": headerprefix}}
                             ],
                             "should": [
                                 {"term": {"msg": "Request"}},
@@ -448,54 +468,79 @@ class AssertionChecker(object):
                 }
             }
         })
+
         result = True
         errormsg = ""
+        if not self._check_non_zero_results(data):
+            result = False
+            errormsg = "No log entries found"
+            return GremlinTestResult(result, errormsg)
+
         reset_time = _parse_duration(reset_time)
-        for bucket in allpairs["aggregations"]["bysource"]["buckets"]:
-            service = bucket["key"]
-            req_seq = _get_by("source", source, allpairs["hits"]["hits"])
+        circuit_mode = "closed"
+
+        # TODO - remove aggregations
+        for bucket in data["aggregations"]["bysource"]["buckets"]:
+            req_seq = _get_by("source", source, data["hits"]["hits"])
             req_seq.sort(key=lambda x: isodate.parse_datetime(x['_source']["ts"]))
-            count = 0
-            tripped = None
+            failures = 0
+            circuit_open_ts = None
             successes = 0
-            # pprint.pprint(reqSeq)
+            print "starting " + circuit_mode
             for req in req_seq:
-                if tripped is not None:
+                if circuit_mode is "open": #circuit_open_ts is not None:
+                    req_spacing = isodate.parse_datetime(req['_source']["ts"]) - circuit_open_ts
                     # Restore to half-open
-                    if isodate.parse_datetime(req['_source']["ts"]) - tripped >= reset_time:
-                        tripped = None
-                        count = - 1
+                    if req_spacing >= reset_time:
+                        circuit_open_ts = None
+                        circuit_mode = "half-open"
+                        print "%d: open -> half-open" %(failures +1)
+                        failures = 0 #-1
                     else:  # We are in open state
                         # this is an assertion fail, no requests in open state
                         if req['_source']["msg"] == "Request":
+                            print "%d: open -> failure" % (failures + 1)
                             if self.debug:
-                                print("Service {} failed to trip circuit breaker")
-                            errormsg = "%s -> %s - expected no requests in open state but found one %s" % (source, dest, req['_source'])
+                                print "Service %s failed to trip circuit breaker" % source
+                            errormsg = "{} -> {} - new request was issued at ({}s) before reset_timer ({}s)expired".format(source,
+                                                                                                                         dest,
+                                                                                                                         req_spacing,
+                                                                                                                         reset_time) #req['_source'])
                             result = False
-                else:
-                    if (req['_source']["msg"] == "Response" and req['_source']["status"] != 200) or\
-                            (req['_source']["msg"] == "Request" and 
-                             ("abort" in req['_source']["actions"])):
-                        # Increment count
-                        count += 1
-                        # print(count)
-                        # Trip CB, go to open state
-                        if count > close_attempts:
-                            tripped = isodate.parse_datetime(req['_source']["ts"])
-                            successes = 0
+                            break
+                if circuit_mode is "half-open":
+                    if ((req['_source']["msg"] == "Response" and req['_source']["status"] != 200)
+                        or (req['_source']["msg"] == "Request" and ("abort" in req['_source']["actions"]))):
+                        print "half-open -> open"
+                        circuit_mode = "open"
+                        circuit_open_ts = isodate.parse_datetime(req['_source']["ts"])
+                        successes = 0
                     elif (req['_source']["msg"] == "Response" and req['_source']["status"] == 200):
-                        # Are we half-open?
-                        if count > 0:
-                            # We got a success!
-                            successes += 1
-                            # If over threshold, return to closed state
-                            if successes > halfopen_attempts:
-                                count = 0
-                    else:
-                        print("Unknown state", req['_source'])
+                        successes += 1
+                        print "half-open -> half-open (%d)" % successes
+                        # If over threshold, return to closed state
+                        if successes > halfopen_attempts:
+                            print "half-open -> closed"
+                            circuit_mode = "closed"
+                            failures = 0
+                            circuit_open_ts = None
+                #else:
+                elif circuit_mode is "closed":
+                    if ((req['_source']["msg"] == "Response" and req['_source']["status"] != 200)
+                        or (req['_source']["msg"] == "Request" and len(req['_source']["actions"]) > 0)):
+                        # Increment failures
+                        failures += 1
+                        print "%d: closed->closed" % failures
+                        # print(failures)
+                        # Trip CB, go to open state
+                        if failures > closed_attempts:
+                            print "%d: closed->open" % failures
+                            circuit_open_ts = isodate.parse_datetime(req['_source']["ts"])
+                            successes = 0
+                            circuit_mode = "open"
 
-        # pprint.pprint(allpairs)
-        return GremlinTestResult(result, "")
+        # pprint.pprint(data)
+        return GremlinTestResult(result, errormsg)
 
     def check_assertion(self, name=None, **kwargs):
         # assertion is something like {"name": "bounded_response_time",
