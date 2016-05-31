@@ -123,22 +123,6 @@ class FailureGenerator(object):
         assert myrule["messagetype"] in ["request", "response", "publish", "subscribe"]
         self._queue.append(myrule)
 
-    def clear_rules(self, continue_on_error=False):
-        self._queue = []
-        for rule in self._queue:
-            instances = self.app.get_service_instances(rule["source"])
-            for instance in instances:
-                try:
-                    resp = requests.post("http://{}/gremlin/v1/rules/add".format(instance),
-                                         headers = {"Content-Type" : "application/json"},
-                                         data=json.dumps(rule))
-                    resp.raise_for_status()
-                except requests.exceptions.ConnectionError, e:
-                    print "FAILURE: Could not add rule to instance %s of service %s" % (instance, rule["source"])
-                    print e
-                    if not continue_on_error:
-                        raise e
-
     def clear_rules_from_all_proxies(self):
         """
             Clear fault injection rules from all known service proxies.
