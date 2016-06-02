@@ -11,7 +11,7 @@ import datetime, time
 logging.basicConfig()
 requests_log = logging.getLogger("requests.packages.urllib3")
 
-def _duration_to_ms(s):
+def _duration_to_floatsec(s):
     r = re.compile(r"(([0-9]*(\.[0-9]*)?)(\D+))", re.UNICODE)
     start=0
     m = r.search(s, start)
@@ -38,12 +38,12 @@ def _duration_to_ms(s):
         start = m.end(1)
         m = r.search(s, start)
     td = datetime.timedelta(**vals)
-    duration_ms = (td.microseconds + (td.seconds + td.days * 24 * 3600) * 10**6) / 10**3
-    return duration_ms
+    duration_us = (td.microseconds + (td.seconds + td.days * 24 * 3600) * 10**6)
+    return duration_us/(1.0 * 10**6)
 
 class A8FailureGenerator(object):
 
-    def __init__(self, app, header='X-Gremlin-ID', pattern='*', a8_url = None, a8_token=None, a8_tenant_id = None, debug=False):
+    def __init__(self, app, pattern='*', a8_url = None, a8_token=None, a8_tenant_id = None, debug=False):
         """
         Create a new failure generator
         @param app ApplicationGraph: instance of ApplicationGraph object
@@ -52,11 +52,13 @@ class A8FailureGenerator(object):
         self.debug = debug
         self._id = None
         self._queue = []
-        self.header = header
         self.pattern = pattern
         self.a8_url = a8_url
         self.a8_token = a8_token
         self.a8_tenant_id = a8_tenant_id
+        assert a8_url is not None and a8_token is not None and a8_tenant_id is not None
+        assert pattern is not ""
+        assert app is not None
         #some common scenarios
         self.functiondict = {
             'delay_requests' : self.delay_requests,
@@ -149,8 +151,6 @@ class A8FailureGenerator(object):
         a8rulekeys = {
                   "source": "source",
                   "dest": "destination",
-                  "trackingheader" : "header",
-                  "headerpattern": "pattern",
                   "delayprobability": "delay_probability",
                   "abortprobability": "abort_probability",
                   "delaytime": "delay",
@@ -160,8 +160,7 @@ class A8FailureGenerator(object):
         myrule = {
                   "source": "",
                   "destination": "",
-                  "header" : "X-Gremlin-ID",
-                  "pattern": "*",
+                  "pattern": self.pattern,
                   "delay_probability": 0.0,
                   "abort_probability": 0.0,
                   "delay": 0,
@@ -179,13 +178,12 @@ class A8FailureGenerator(object):
         services = self.app.get_services()
         assert myrule["source"] != "" and myrule["destination"] != ""
         assert myrule["source"] in services and myrule["destination"] in services
-        assert myrule["header"] != "" and myrule['pattern'] != ""
         assert myrule['delay_probability'] >0.0 or myrule['abort_probability'] >0.0
         if myrule["delay_probability"] > 0.0:
             assert myrule["delay"] != ""
-            myrule["delay"] = _duration_to_ms(myrule["delay"])
+            myrule["delay"] = _duration_to_floatsec(myrule["delay"])
         if myrule["abort_probability"] > 0.0:
-            assert myrule["return_code"] >= -1
+            assert myrule["return_code"] >= 0
         self._queue.append(myrule)
 
     def clear_rules_from_all_proxies(self):
@@ -211,7 +209,7 @@ class A8FailureGenerator(object):
         try:
             resp = requests.put("{}/v1/tenants/{}".format(self.a8_url, self.a8_tenant_id),
                                 headers = {"Content-Type" : "application/json", "Authorization" : self.a8_token},
-                                data=json.dumps({"filters":{"rules":[self._queue]}}))
+                                data=json.dumps({"filters":{"rules":self._queue}}))
             resp.raise_for_status()
         except requests.exceptions.ConnectionError, e:
             print "FAILURE: Could not communicate with control plane %s" % self.a8_url
