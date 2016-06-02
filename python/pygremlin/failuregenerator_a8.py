@@ -43,7 +43,7 @@ def _duration_to_floatsec(s):
 
 class A8FailureGenerator(object):
 
-    def __init__(self, app, pattern='*', a8_url = None, a8_token=None, a8_tenant_id = None, debug=False):
+    def __init__(self, app, header=None, pattern=None, a8_url = None, a8_token=None, a8_tenant_id = None, debug=False):
         """
         Create a new failure generator
         @param app ApplicationGraph: instance of ApplicationGraph object
@@ -52,12 +52,13 @@ class A8FailureGenerator(object):
         self.debug = debug
         self._id = None
         self._queue = []
+        self.header = header
         self.pattern = pattern
         self.a8_url = a8_url
         self.a8_token = a8_token
         self.a8_tenant_id = a8_tenant_id
         assert a8_url is not None and a8_token is not None and a8_tenant_id is not None
-        assert pattern is not ""
+        assert pattern is not None
         assert app is not None
         #some common scenarios
         self.functiondict = {
@@ -207,9 +208,12 @@ class A8FailureGenerator(object):
     #TODO: Create a plugin model here, to support gremlinproxy and nginx
     def push_rules(self):
         try:
+            payload = {"filters":{"rules":self._queue}}
+            if self.header:
+                payload['req_tracking_header'] = self.header
             resp = requests.put("{}/v1/tenants/{}".format(self.a8_url, self.a8_tenant_id),
                                 headers = {"Content-Type" : "application/json", "Authorization" : self.a8_token},
-                                data=json.dumps({"filters":{"rules":self._queue}}))
+                                data=json.dumps(payload))
             resp.raise_for_status()
         except requests.exceptions.ConnectionError, e:
             print "FAILURE: Could not communicate with control plane %s" % self.a8_url
