@@ -90,14 +90,6 @@ def _get_by(key, val, l):
     return [x for x in l if _check_value_recursively(key, val, x)]
 
 
-def _get_by_id(header, ID, l):
-    """
-    A convenience wrapper over _get_by
-    that fetches things based on the req_tracking_header field
-    """
-    return _get_by(header, ID, l)
-
-
 class A8AssertionChecker(object):
 
     """
@@ -371,7 +363,7 @@ class A8AssertionChecker(object):
         # Now we have to check the timestamps
         for bucket in data["aggregations"]["byid"]["buckets"]:
             req_id = bucket["key"]
-            req_seq = _get_by_id(self.header, req_id, data["hits"]["hits"])
+            req_seq = _get_by(self.header, req_id, data["hits"]["hits"])
             req_seq.sort(key=lambda x: int(x['_source']["timestamp_in_ms"]))
             for i in range(len(req_seq) - 1):
                 observed = (req_seq[i + 1]['_source']["timestamp_in_ms"] - req_seq[i]['_source']["timestamp_in_ms"])/1000.0
