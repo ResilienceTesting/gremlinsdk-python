@@ -13,6 +13,7 @@ import re
 from collections import defaultdict, namedtuple
 import datetime
 import time
+import copy
 from __builtin__ import dict
 import logging
 import logging.handlers
@@ -96,7 +97,7 @@ class A8AssertionChecker(object):
     The asssertion checker
     """
 
-    def __init__(self, host, test_id, header='X-Gremlin-ID', pattern='*', debug=False):
+    def __init__(self, host, test_id, header='X-Gremlin-ID', pattern='*', start_time=None, end_time=None, debug=False):
         """
         param host: the elasticsearch host
         test_id: id of the test to which we are reqstricting the queires
@@ -106,6 +107,16 @@ class A8AssertionChecker(object):
         self.debug=debug
         self.header = 'http_'+str(header).lower().replace('-','_')
         self.pattern = pattern
+        self.start_time=start_time
+        self.end_time=end_time
+        if self.start_time or self.end_time:
+            self.time_range={"@timestamp":{}}
+            if self.start_time:
+                self.time_range["@timestamp"]["gte"]=self.start_time
+            if self.end_time:
+                self.time_range["@timestamp"]["lte"]=self.end_time
+        else:
+            self.time_range = None
         self.functiondict = {
             'bounded_response_time' : self.check_bounded_response_time,
             'http_success_status' : self.check_http_success_status,
@@ -120,29 +131,32 @@ class A8AssertionChecker(object):
         """
         return data["hits"]["total"] != 0 and len(data["hits"]["hits"]) != 0
 
+    def _get_query_object(self, src=None, dst=None):
+        body={
+            "size": max_query_results,
+            "query": {
+                "bool": {
+                    "must": [
+                        {"match": {self.header: self.pattern}},
+                    ]
+                }
+            }
+        }
+        if self.time_range:
+            body["filter"] = {"range" : self.time_range}
+        if src:
+            body["query"]["bool"]["must"].append({"prefix": {"src": src}})
+        if dst:
+            body["query"]["bool"]["must"].append({"prefix": {"dst": dst}})
+        return body
+
     def check_bounded_response_time(self, **kwargs):
         assert 'source' in kwargs and 'dest' in kwargs and 'max_latency' in kwargs
         dest = kwargs['dest']
         source = kwargs['source']
         max_latency = _duration_to_floatsec(kwargs['max_latency'])
-        data = self._es.search(index="nginx", body={
-            "size": max_query_results,
-            "query": {
-                "filtered": {
-                    "query": {
-                        "match_all": {}
-                    },
-                    "filter": {
-                        "bool": {
-                            "must": [
-                                {"term": {"src": source}},
-                                {"prefix": {"dst": dest}},
-                            ]
-                        }
-                    }
-                }
-            }
-        })
+        query_body = self._get_query_object(source, dest)
+        data = self._es.search(index="nginx", body=query_body)
         if self.debug:
             pprint.pprint(data)
 
@@ -201,25 +215,8 @@ class A8AssertionChecker(object):
         status = kwargs['status']
         if isinstance(status, int):
             status = [status]
-        ## TBD: Need to further filter this query using the header and pattern
-        data = self._es.search(index="nginx", body={
-            "size": max_query_results,
-            "query": {
-                "filtered": {
-                    "query": {
-                        "match_all": {}
-                    },
-                    "filter": {
-                        "bool" : {
-                            "must": [
-                                {"term": {"src": source}},
-                                {"prefix": {"dst": dest}}
-                            ]
-                        }
-                    }
-                }
-            }})
-
+        query_body = self._get_query_object(source, dest)
+        data = self._es.search(index="nginx", body=query_body)
         result = True
         errormsg = ""
         if not self._check_non_zero_results(data):
@@ -229,7 +226,7 @@ class A8AssertionChecker(object):
 
         for message in data["hits"]["hits"]:
             if int(message['_source']["status"]) not in status:
-                errormsg = {"found_status" : message["_source"]["status"]}
+                errormsg = "unexpected status {}".format(message["_source"]["status"])
                 if self.debug:
                     print(errormsg)
                 result = False
@@ -388,7 +385,7 @@ class A8AssertionChecker(object):
 
         return AssertionResult(name, str(kwargs), gremlin_test_result.success, gremlin_test_result.errormsg)
 
-    def check_assertions(self, checklist, all=False):
+    def check_assertions(self, checklist, continue_on_error=False):
         """Check a set of assertions
         @param all boolean if False, stop at first failure
         @return: False if any assertion fails.
@@ -400,8 +397,11 @@ class A8AssertionChecker(object):
         retlist = []
         for assertion in checklist['checks']:
             retval = self.check_assertion(**assertion)
-            retlist.append(retval)
-            if not retval.success and not all:
+            check = copy.deepcopy(assertion)
+            check['result']=retval.success
+            check['errormsg']=retval.errormsg
+            retlist.append(check)
+            if not retval.success and not continue_on_error:
                 return retlist
 
         return retlist
