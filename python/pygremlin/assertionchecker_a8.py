@@ -207,6 +207,8 @@ class A8AssertionChecker(object):
         source = kwargs['source']
         dest = kwargs['dest']
         status = kwargs['status']
+        if isinstance(status, int):
+            status = [status]
         ## TBD: Need to further filter this query using the header and pattern
         data = self._es.search(index="nginx", body={
             "size": max_query_results,
@@ -234,11 +236,10 @@ class A8AssertionChecker(object):
             return GremlinTestResult(result, errormsg)
 
         for message in data["hits"]["hits"]:
-            if int(message['_source']["status"]) != status:
-                errormsg = "{} -> {} - expected HTTP {} but found found HTTP {}".format(
-                    message["_source"]["src"], message["_source"]["dst"], status, message["_source"]["status"])
+            if int(message['_source']["status"]) not in status:
+                errormsg = {"found_status" : message["_source"]["status"]}
                 if self.debug:
-                    print(message['_source'])
+                    print(errormsg)
                 result = False
         return GremlinTestResult(result, errormsg)
 
