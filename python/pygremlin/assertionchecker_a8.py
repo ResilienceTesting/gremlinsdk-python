@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
+
 import json
 
 from elasticsearch import Elasticsearch
@@ -14,13 +14,23 @@ from collections import defaultdict, namedtuple
 import datetime
 import time
 from __builtin__ import dict
+import logging
+import logging.handlers
+
+#es_logger = logging.getLogger('elasticsearch')
+#es_logger.setLevel(logging.DEBUG)
+#es_logger.addHandler(logging.StreamHandler())
+
+# es_tracer = logging.getLogger('elasticsearch.trace')
+# es_tracer.setLevel(logging.DEBUG)
+# es_tracer.addHandler(logging.StreamHandler())
 
 GremlinTestResult = namedtuple('GremlinTestResult', ['success','errormsg'])
 AssertionResult = namedtuple('AssertionResult', ['name','info','success','errormsg'])
 
-max_query_results = 2**31-1
+max_query_results = 500
 
-def _parse_duration(s):
+def _duration_to_floatsec(s):
     r = re.compile(r"(([0-9]*(\.[0-9]*)?)(\D+))", re.UNICODE)
     start=0
     m = r.search(s, start)
@@ -40,13 +50,15 @@ def _parse_duration(s):
             vals["seconds"] = value
         elif unit == "ms":
             vals["milliseconds"] = value
-        elif unit == "us" or unit == "µs":
+        elif unit == "us":
             vals["microseconds"] = value
         else:
             raise("Unknown time unit")
         start = m.end(1)
         m = r.search(s, start)
-    return datetime.timedelta(**vals)
+    td = datetime.timedelta(**vals)
+    duration_us = (td.microseconds + (td.seconds + td.days * 24 * 3600) * 10**6)
+    return duration_us/(1.0 * 10**6)
 
 def _since(timestamp):
     return time.time()-timestamp
@@ -78,12 +90,12 @@ def _get_by(key, val, l):
     return [x for x in l if _check_value_recursively(key, val, x)]
 
 
-def _get_by_id(ID, l):
+def _get_by_id(header, ID, l):
     """
     A convenience wrapper over _get_by
-    that fetches things based on the "reqID" field
+    that fetches things based on the req_tracking_header field
     """
-    return _get_by("reqID", ID, l)
+    return _get_by(header, ID, l)
 
 
 class A8AssertionChecker(object):
@@ -97,19 +109,16 @@ class A8AssertionChecker(object):
         param host: the elasticsearch host
         test_id: id of the test to which we are reqstricting the queires
         """
-        self._es = Elasticsearch(host)
+        self._es = Elasticsearch(hosts=[host])
         self._id = test_id
         self.debug=debug
-        self.header = header
+        self.header = 'http_'+str(header).lower().replace('-','_')
         self.pattern = pattern
         self.functiondict = {
-            'no_proxy_errors' : self.check_no_proxy_errors,
             'bounded_response_time' : self.check_bounded_response_time,
             'http_success_status' : self.check_http_success_status,
             'http_status' : self.check_http_status,
-#            'reachability' : self.check_reachability,
             'bounded_retries' : self.check_bounded_retries,
-            'circuit_breaker' : self.check_circuit_breaker,
             'at_most_requests': self.check_at_most_requests
         }
 
@@ -119,56 +128,12 @@ class A8AssertionChecker(object):
         """
         return data["hits"]["total"] != 0 and len(data["hits"]["hits"]) != 0
 
-    #was ProxyErrorsBad
-    def check_no_proxy_errors(self, **kwargs):
-        """
-        Helper method to determine if the proxies logged any major errors related to the functioning of the proxy itself
-        """
-        data = self._es.search(body={
-            "size": max_query_results,
-            "query": {
-                "filtered": {
-                    "query": {
-                        "match_all": {}
-                    },
-                    "filter": {
-                        "term": {
-                            "level": "error"
-                        }
-                    }
-                }
-            }
-        })
-#        if self.debug:
-#            print(data)
-        return GremlinTestResult(data["hits"]["total"] == 0, data)
-
-    #was ProxyErrors
-    def get_requests_with_errors(self):
-        """ Helper method to determine if proxies logged any error related to the requests passing through"""
-        data = self._es.search(body={
-            "size": max_query_results,
-            "query": {
-                "filtered": {
-                    "query": {
-                        "match_all": {}
-                    },
-                    "filter": {
-                        "exists": {
-                            "field": "errmsg"
-                        }
-                    }
-                }
-            }
-        })
-        return GremlinTestResult(False, data)
-
     def check_bounded_response_time(self, **kwargs):
         assert 'source' in kwargs and 'dest' in kwargs and 'max_latency' in kwargs
         dest = kwargs['dest']
         source = kwargs['source']
-        max_latency = _parse_duration(kwargs['max_latency'])
-        data = self._es.search(body={
+        max_latency = _duration_to_floatsec(kwargs['max_latency'])
+        data = self._es.search(index="nginx", body={
             "size": max_query_results,
             "query": {
                 "filtered": {
@@ -178,10 +143,8 @@ class A8AssertionChecker(object):
                     "filter": {
                         "bool": {
                             "must": [
-                                {"term": {"msg": "Response"}},
-                                {"term": {"source": source}},
-                                {"term": {"dest": dest}},
-                                {"term": {"testid": self._id}}
+                                {"term": {"src": source}},
+                                {"prefix": {"dst": dest}},
                             ]
                         }
                     }
@@ -199,17 +162,17 @@ class A8AssertionChecker(object):
             return GremlinTestResult(result, errormsg)
 
         for message in data["hits"]["hits"]:
-            if _parse_duration(message['_source']["duration"]) > max_latency:
+            if float(message['_source']["upstream_response_time"]) > max_latency:
                 result = False
-                # Request ID from service did not
-                errormsg = "{} did not reply in time for request {}, {}".format(
-                    dest, message['_source']["reqID"], message['_source']["duration"])
+                errormsg = "{} did not reply in time for request from {}: found one instance where resp time was {}s - max {}s".format(
+                    dest, source, message['_source']["upstream_response_time"], max_latency)
                 if self.debug:
                     print errormsg
         return GremlinTestResult(result, errormsg)
 
+    #This isn't working with elasticsearch 2.0+. Neither does regexp
     def check_http_success_status(self, **kwargs):
-        data = self._es.search(body={
+        data = self._es.search(index="nginx", body={
             "size": max_query_results,
             "query": {
                 "filtered": {
@@ -217,9 +180,10 @@ class A8AssertionChecker(object):
                         "match_all": {}
                     },
                     "filter": {
-                        "exists": {
-                            "field": "status"
-                        }
+                        "and" : [
+                            {"exists": {"field": "status"}},
+                            { "prefix": {self.header: self.pattern}}
+                        ]
                     }
                 }
             }})
@@ -231,20 +195,20 @@ class A8AssertionChecker(object):
             return GremlinTestResult(result, errormsg)
 
         for message in data["hits"]["hits"]:
-            if message['_source']["status"] != 200:
-                if self.debug:
-                    print(message['_source'])
+            if int(message['_source']["status"]) != 200:
+                errormsg = "{} -> {} - expected HTTP 200 but found found HTTP {}".format(
+                    message["_source"]["src"], message["_source"]["dst"], message["_source"]["status"])
                 result = False
         return GremlinTestResult(result, errormsg)
 
     ##check if the interaction between a given pair of services resulted in the required response status
     def check_http_status(self, **kwargs):
-        assert 'source' in kwargs and 'dest' in kwargs and 'status' in kwargs and 'req_id' in kwargs
+        assert 'source' in kwargs and 'dest' in kwargs and 'status' in kwargs
         source = kwargs['source']
         dest = kwargs['dest']
         status = kwargs['status']
-        req_id = kwargs['req_id']
-        data = self._es.search(body={
+        ## TBD: Need to further filter this query using the header and pattern
+        data = self._es.search(index="nginx", body={
             "size": max_query_results,
             "query": {
                 "filtered": {
@@ -254,12 +218,8 @@ class A8AssertionChecker(object):
                     "filter": {
                         "bool" : {
                             "must": [
-                                {"term": {"msg": "Response"}},
-                                {"term": {"source": source}},
-                                {"term": {"dest": dest}},
-                                {"term": {"req_id": req_id}},
-                                {"term": {"protocol" : "http"}},
-                                {"term": {"testid": self._id}}
+                                {"term": {"src": source}},
+                                {"prefix": {"dst": dest}}
                             ]
                         }
                     }
@@ -274,7 +234,9 @@ class A8AssertionChecker(object):
             return GremlinTestResult(result, errormsg)
 
         for message in data["hits"]["hits"]:
-            if message['_source']["status"] != status:
+            if int(message['_source']["status"]) != status:
+                errormsg = "{} -> {} - expected HTTP {} but found found HTTP {}".format(
+                    message["_source"]["src"], message["_source"]["dst"], status, message["_source"]["status"])
                 if self.debug:
                     print(message['_source'])
                 result = False
@@ -291,7 +253,7 @@ class A8AssertionChecker(object):
         # TODO: Does the proxy support logging of instances so that grouping by instance is possible?
 
         # Fetch requests for src->dst
-        data = self._es.search(body={
+        data = self._es.search(index="nginx", body={
             "size": max_query_results,
             "query": {
                 "filtered": {
@@ -301,11 +263,9 @@ class A8AssertionChecker(object):
                     "filter": {
                         "bool": {
                             "must": [
-                                {"term": {"msg": "Request"}},
-                                {"term": {"source": source}},
-                                {"term": {"dest": dest}},
-                                {"term": {"protocol": "http"}},
-                                {"term": {"testid": self._id}}
+                                {"term": {"src": source}},
+                                {"prefix": {"dst": dest}},
+                                {"prefix": {self.header: self.pattern}}
                             ]
                         }
                     }
@@ -316,7 +276,7 @@ class A8AssertionChecker(object):
                 "size": max_query_results,
                 "byid": {
                     "terms": {
-                        "field": "reqID",
+                        "field": self.header,
                     }
                 }
             }
@@ -351,13 +311,13 @@ class A8AssertionChecker(object):
         dest = kwargs['dest']
         retries = kwargs['retries']
         wait_time = kwargs.pop('wait_time', None)
-        errdelta = kwargs.pop('errdelta', datetime.timedelta(milliseconds=10))
+        errdelta = kwargs.pop('errdelta', 0.0) #datetime.timedelta(milliseconds=10))
         by_uri = kwargs.pop('by_uri', False)
 
         if self.debug:
             print 'in bounded retries (%s, %s, %s)' % (source, dest, retries)
 
-        data = self._es.search(body={
+        data = self._es.search(index="nginx", body={
             "size": max_query_results,
             "query": {
                 "filtered": {
@@ -367,10 +327,9 @@ class A8AssertionChecker(object):
                     "filter": {
                         "bool": {
                             "must": [
-                                {"term": {"source": source}},
-                                {"term": {"msg": "Request"}},
-                                {"term": {"dest": dest}},
-                                {"term": {"testid": self._id}}
+                                {"term": {"src": source}},
+                                {"prefix": {"dst": dest}},
+                                {"prefix": {self.header: self.pattern}}
                             ]
                         }
                     }
@@ -379,7 +338,7 @@ class A8AssertionChecker(object):
             "aggs": {
                 "byid": {
                     "terms": {
-                        "field": "reqID" if not by_uri else "uri",
+                        "field": self.header if not by_uri else "uri",
                     }
                 }
             }
@@ -406,142 +365,22 @@ class A8AssertionChecker(object):
                 return GremlinTestResult(result, errormsg)
         if wait_time is None:
             return GremlinTestResult(result, errormsg)
- 
-        wait_time = _parse_duration(wait_time)
+
+        wait_time = _duration_to_floatsec(wait_time)
         # Now we have to check the timestamps
         for bucket in data["aggregations"]["byid"]["buckets"]:
             req_id = bucket["key"]
-            req_seq = _get_by_id(req_id, data["hits"]["hits"])
-            req_seq.sort(key=lambda x: isodate.parse_datetime(x['_source']["ts"]))
+            req_seq = _get_by_id(self.header, req_id, data["hits"]["hits"])
+            req_seq.sort(key=lambda x: int(x['_source']["timestamp_in_ms"]))
             for i in range(len(req_seq) - 1):
-                observed = isodate.parse_datetime(
-                    req_seq[i + 1]['_source']["ts"]) - isodate.parse_datetime(req_seq[i]['_source']["ts"])
+                observed = (req_seq[i + 1]['_source']["timestamp_in_ms"] - req_seq[i]['_source']["timestamp_in_ms"])/1000.0
                 if not (((wait_time - errdelta) <= observed) or (observed <= (wait_time + errdelta))):
-                    errormsg = "{} -> {} - expected {}+/-{}ms spacing for retry attempt {}, but request {} had a spacing of {}ms".format(
-                        source, dest, wait_time, errdelta.microseconds/1000, i+1, req_id, observed.microseconds/1000)
+                    errormsg = "{} -> {} - expected {}+/-{}s spacing for retry attempt {}, but request {} had a spacing of {}s".format(
+                        source, dest, wait_time, errdelta, i+1, req_id, observed)
                     result = False
                     if self.debug:
                         print errormsg
                     break
-        return GremlinTestResult(result, errormsg)
-
-    def check_circuit_breaker(self, **kwargs): #dest, closed_attempts, reset_time, halfopen_attempts):
-        assert 'dest' in kwargs and 'source' in kwargs and 'closed_attempts' in kwargs and 'reset_time' in kwargs and 'headerprefix' in kwargs
-
-        dest = kwargs['dest']
-        source = kwargs['source']
-        closed_attempts = kwargs['closed_attempts']
-        reset_time = kwargs['reset_time']
-        headerprefix = kwargs['headerprefix']
-        if 'halfopen_attempts' not in kwargs:
-            halfopen_attempts = 1
-        else:
-            halfopen_attempts = kwargs['halfopen_attempts']
-
-        # TODO: this has been tested for thresholds but not for recovery
-        # timeouts
-        data = self._es.search(body={
-            "size": max_query_results,
-            "query": {
-                "filtered": {
-                    "query": {
-                        "match_all": {}
-                    },
-                    "filter": {
-                        "bool": {
-                            "must": [
-                                {"term": {"source": source}},
-                                {"term": {"dest": dest}},
-                                {"prefix": {"reqID": headerprefix}}
-                            ],
-                            "should": [
-                                {"term": {"msg": "Request"}},
-                                {"term": {"msg": "Response"}},
-                            ]
-                        }
-                    }
-                }
-            },
-            "aggs": {
-                "bysource": {
-                    "terms": {
-                        "field": "source",
-                    }
-                }
-            }
-        })
-
-        result = True
-        errormsg = ""
-        if not self._check_non_zero_results(data):
-            result = False
-            errormsg = "No log entries found"
-            return GremlinTestResult(result, errormsg)
-
-        reset_time = _parse_duration(reset_time)
-        circuit_mode = "closed"
-
-        # TODO - remove aggregations
-        for bucket in data["aggregations"]["bysource"]["buckets"]:
-            req_seq = _get_by("source", source, data["hits"]["hits"])
-            req_seq.sort(key=lambda x: isodate.parse_datetime(x['_source']["ts"]))
-            failures = 0
-            circuit_open_ts = None
-            successes = 0
-            print "starting " + circuit_mode
-            for req in req_seq:
-                if circuit_mode is "open": #circuit_open_ts is not None:
-                    req_spacing = isodate.parse_datetime(req['_source']["ts"]) - circuit_open_ts
-                    # Restore to half-open
-                    if req_spacing >= reset_time:
-                        circuit_open_ts = None
-                        circuit_mode = "half-open"
-                        print "%d: open -> half-open" %(failures +1)
-                        failures = 0 #-1
-                    else:  # We are in open state
-                        # this is an assertion fail, no requests in open state
-                        if req['_source']["msg"] == "Request":
-                            print "%d: open -> failure" % (failures + 1)
-                            if self.debug:
-                                print "Service %s failed to trip circuit breaker" % source
-                            errormsg = "{} -> {} - new request was issued at ({}s) before reset_timer ({}s)expired".format(source,
-                                                                                                                         dest,
-                                                                                                                         req_spacing,
-                                                                                                                         reset_time) #req['_source'])
-                            result = False
-                            break
-                if circuit_mode is "half-open":
-                    if ((req['_source']["msg"] == "Response" and req['_source']["status"] != 200)
-                        or (req['_source']["msg"] == "Request" and ("abort" in req['_source']["actions"]))):
-                        print "half-open -> open"
-                        circuit_mode = "open"
-                        circuit_open_ts = isodate.parse_datetime(req['_source']["ts"])
-                        successes = 0
-                    elif (req['_source']["msg"] == "Response" and req['_source']["status"] == 200):
-                        successes += 1
-                        print "half-open -> half-open (%d)" % successes
-                        # If over threshold, return to closed state
-                        if successes > halfopen_attempts:
-                            print "half-open -> closed"
-                            circuit_mode = "closed"
-                            failures = 0
-                            circuit_open_ts = None
-                #else:
-                elif circuit_mode is "closed":
-                    if ((req['_source']["msg"] == "Response" and req['_source']["status"] != 200)
-                        or (req['_source']["msg"] == "Request" and len(req['_source']["actions"]) > 0)):
-                        # Increment failures
-                        failures += 1
-                        print "%d: closed->closed" % failures
-                        # print(failures)
-                        # Trip CB, go to open state
-                        if failures > closed_attempts:
-                            print "%d: closed->open" % failures
-                            circuit_open_ts = isodate.parse_datetime(req['_source']["ts"])
-                            successes = 0
-                            circuit_mode = "open"
-
-        # pprint.pprint(data)
         return GremlinTestResult(result, errormsg)
 
     def check_assertion(self, name=None, **kwargs):
