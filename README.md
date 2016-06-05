@@ -1,6 +1,6 @@
 ## Gremlin - Systematic Resiliency Testing of Microservices
 
-Gremlin is a framework for **systematically testing** the failure recovery
+Gremlin is a framework for **systematically** testing the failure recovery
 logic in microservices in a manner that is independent of the programming
 language and the business logic in the microservices. Gremlin takes
 advantage of the fact that microservices are loosely coupled and interact
@@ -48,7 +48,11 @@ service proxy implementation
 standalone proxy meant to be used as a sidecar process alongside the
 microservice, running in the same container or a VM.
 
-For a step-by-step tutorial on Gremlin, checkout the [getting started](https://github.com/ResilienceTesting/gremlinsdk-python/Getting-Started.md) page.
+### [Getting started](https://github.com/ResilienceTesting/gremlinsdk-python/exampleapp/README.md)
+
+The exampleapp folder contains a simple microservice application and a
+step-by-step tutorial that walks you through the process of using the
+recipes to conduct systematic resilience testing.
 
 ### Example recipes
 
@@ -111,6 +115,3 @@ What if B had a timeout of 100ms when calling C? This assertion would
 fail. This is not an unrealistic scenario. In fact, this is quite common in
 microservice-based applications, because each service is being developed by
 different developers/teams. A and B have conflicting failure recovery policies.
-
-=======
-For a step-by-step tutorial on Gremlin, checkout the [getting started](https://github.com/ResilienceTesting/gremlinsdk-python/blob/master/Getting-Started.md) page.

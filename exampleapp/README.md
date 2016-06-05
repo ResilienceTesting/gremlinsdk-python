@@ -35,7 +35,7 @@ instead of randomly injecting failures without any useful validation.
 
   * Setup the simple microservice application
 
-    ![A Simple Bookinfo App](https://github.com/ResilienceTesting/gremlinsdk-python/blob/master/bookinfoapp.png)
+    ![A Simple Bookinfo App](https://github.com/ResilienceTesting/gremlinsdk-python/blob/master/exampleapp/bookinfoapp.png)
 
     For trying out some of the recipes, we will be using a simple bookinfo
     application made of three microservices and an API gateway service
@@ -49,7 +49,7 @@ instead of randomly injecting failures without any useful validation.
     Lets first build the Docker images for each microservice.
 
     ```bash
-    cd gremlinsdk-python/sample-bookinfoapp; ./build-apps.sh
+    cd gremlinsdk-python/exampleapp; ./build-apps.sh
     ```
 
     The Docker images for the API _gateway_ and the _productpage_ service have
@@ -77,7 +77,7 @@ instead of randomly injecting failures without any useful validation.
 #### Step 1: Bring up the application and services
 
 ```bash
-cd gremlinsdk-python/sample-bookinfoapp; ./runapps.sh
+cd gremlinsdk-python/exampleapp; ./runapps.sh
 ```
 
 Open Postman and access the URL http://localhost:9180/productpage to make sure the page is up.
@@ -94,14 +94,14 @@ very contrived example meant for the purpose of illustration. In real
 world, you would be using a circuit breaker pattern to recover from such
 failures.
 
-![Expected & unexpected outcomes during failure](https://github.com/ResilienceTesting/gremlinsdk-python/blob/master/bookinfoapp-failure.png)
+![Expected & unexpected outcomes during failure](https://github.com/ResilienceTesting/gremlinsdk-python/blob/master/exampleapp/bookinfoapp-failure.png)
 
 While it is possible to express Gremlin recipes purely in Python code, for
 the purpose of this tutorial, we will be using a simple generic test
-harness (```gremlinsdk-python/sample-bookinfoapp/recipes/run_recipe_json.py```) that takes as input
+harness (```gremlinsdk-python/exampleapp/recipes/run_recipe_json.py```) that takes as input
 three JSON files: the application's dependency graph, the failure scenario
 and the assertions. You will find the following three JSON files in the
-```gremlinsdk-python/sample-bookinfoapp/recipes``` folder:
+```gremlinsdk-python/exampleapp/recipes``` folder:
 
  + ```topology.json``` describes the applicaton topology for the bookinfo application that we setup earlier.
  + ```gremlins.json``` describes the failure scenario, wherein the
@@ -130,7 +130,7 @@ and the assertions. You will find the following three JSON files in the
 Lets run the recipe.
 
 ```bash
-cd gremlinsdk-python/sample-bookinfoapp/recipes; ./run_recipe_json.py topology.json gremlins.json checklist.json
+cd gremlinsdk-python/exampleapp/recipes; ./run_recipe_json.py topology.json gremlins.json checklist.json
 ```
 
 You should see the following output:
@@ -184,7 +184,7 @@ Lets fix the buggy _productpage_ service, rebuild and redeploy. We will add
 a 100ms timeout to API calls made to the _reviews_ service.
 
 ```bash
-cd gremlinsdk-python/sample-bookinfoapp
+cd gremlinsdk-python/exampleapp
 ```
 
 Open productpage/productpage.py in your favorite editor. Go to the getReview() function.
@@ -218,13 +218,13 @@ Save and close the file.
 Rebuild the app.
 
 ```bash
-cd gremlinsdk-python/sample-bookinfoapp; ./rebuild-productpage.sh
+cd gremlinsdk-python/exampleapp; ./rebuild-productpage.sh
 ```
 
 Redeploy the app.
 
 ```bash
-cd gremlinsdk-python/sample-bookinfoapp; ./killall.sh;./runall.sh
+cd gremlinsdk-python/exampleapp; ./killall.sh;./runall.sh
 ```
 
 #### Step 6: Test again
@@ -250,5 +250,5 @@ old setup and rebuild the docker containers.  The ```undochanges.sh```
 helper script automates all of these tasks.
 
 ```bash
-cd gremlinsdk/sample-bookinfoapp; ./undochanges.sh
+cd gremlinsdk-python/exampleapp; ./undochanges.sh
 ```
