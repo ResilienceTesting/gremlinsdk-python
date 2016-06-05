@@ -1,4 +1,4 @@
-# Getting Started with Gremlin
+# Getting started with Gremlin
 
 In this tutorial, we will use a simple application composed of 3
 microservices, to understand how to use Gremlin to systematically inject a
@@ -9,7 +9,7 @@ microservices implemented
 to handle the failure. When compared with simply injecting faults (killing
 VMs, containers or failing requests randomly), one of the main advantages
 of this systematic approach is that it gives the tester a good idea of
-where things might be going wrong. He/She could them quickly fix the
+where things might be going wrong. He/She could then quickly fix the
 service, rebuild, redeploy, and test again.
 
 This example, while contrived, serves to illustrate the benefits of
@@ -72,7 +72,7 @@ instead of randomly injecting failures without any useful validation.
 
 ---
 
-## Systematic Resiliency Testing
+## Resilience testing: Checking for timeouts
 
 #### Step 1: Bring up the application and services
 
@@ -83,7 +83,7 @@ cd gremlinsdk-python/exampleapp; ./runapps.sh
 Open Postman and access the URL http://localhost:9180/productpage to make sure the page is up.
 
 
-#### Step 2: Gremlin recipe - setting up failures in production
+#### Step 2: Gremlin recipe - setting up failures
 
 Lets run a very simple Gremlin recipe that fakes the overload of the
 _reviews_ service (without needing to crash the service) and checks if the
@@ -140,6 +140,11 @@ Use postman to inject test requests,
    with HTTP header X-Gremlin-ID: <header-value>
    press Enter key to continue to validation phase
 ```
+
+*Note*: Realistically, load injection would be performed as part of the test
+script. However, for the purposes of this tutorial, lets manually inject
+the load into the application so that we can visually observe the impact of
+fault injection and failure handling.
 
 #### Step 3: Load injection
 
@@ -252,3 +257,13 @@ helper script automates all of these tasks.
 ```bash
 cd gremlinsdk-python/exampleapp; ./undochanges.sh
 ```
+
+---
+
+## Takeaways
+
+What we did above was to test an app for failure recovery, debugged it,
+fixed the issue, redeployed and tested again to ensure that the bug has
+been fixed properly. You could imagine automating the entire testing
+process above and integrating it into your build pipeline, so that you can
+run failure recovery tests just like your unit and integration tests.
