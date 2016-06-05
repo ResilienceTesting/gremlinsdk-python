@@ -32,7 +32,7 @@
   "router": {
       "name": "productpage",
       "port": 9876,
-      "gremlinheader": "X-Gremlin-ID"
+      "trackingheader": "X-Gremlin-ID"
   },
   "loglevel" : "debug",
   "logjson": true,
