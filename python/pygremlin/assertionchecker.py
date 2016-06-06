@@ -1,28 +1,29 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-import json
 
-from elasticsearch import Elasticsearch
 import datetime
 import pprint
-import warnings
-import isodate
-import sys
-
 import re
 from collections import defaultdict, namedtuple
-import datetime
-import time
-from __builtin__ import dict
 
-GremlinTestResult = namedtuple('GremlinTestResult', ['success','errormsg'])
-AssertionResult = namedtuple('AssertionResult', ['name','info','success','errormsg'])
+import isodate
+from elasticsearch import Elasticsearch
 
-max_query_results = 2**31-1
+GremlinTestResult = namedtuple('GremlinTestResult', ['success', 'errormsg'])
+AssertionResult = namedtuple('AssertionResult',
+                             ['name', 'info', 'success', 'errormsg'])
+
+max_query_results = 2 ** 31 - 1
+
 
 def _parse_duration(s):
+    """
+    Parse the duration specified as as a string
+    :param s: the string
+    :return: a :py:datetime.timedelta object corresponding to the duration
+    """
     r = re.compile(r"(([0-9]*(\.[0-9]*)?)(\D+))", re.UNICODE)
-    start=0
+    start = 0
     m = r.search(s, start)
     vals = defaultdict(lambda: 0)
     while m is not None:
