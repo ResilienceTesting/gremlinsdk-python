@@ -9,7 +9,9 @@ from collections import defaultdict, namedtuple
 import isodate
 from elasticsearch import Elasticsearch
 
+from elasticsearch_dsl import Search, A
 from six import iteritems
+# from pygremlin.logger import logger, configure_debug
 
 GremlinTestResult = namedtuple('GremlinTestResult', ['success', 'errormsg'])
 AssertionResult = namedtuple('AssertionResult',
@@ -465,7 +467,7 @@ class AssertionChecker(object):
         times.sort()
         return (times[-1] - [times[0]]) / len(times)
 
-    def check_bulkhead(self, source, threshold, **kwargs):
+    def check_has_bulkhead(self, source, **kwargs):
         """
         Check that the service *source* implments a bulkhead pattern.
         This is accomplished by
@@ -476,34 +478,42 @@ class AssertionChecker(object):
         """
         # Get the requests from source to everywhere else and bucket
         # by destination
-        data = self._es.search(body={
-            "size": max_query_results,
-            "query": {
-                "filtered": {
-                    "query": {
-                        "match_all": {}
-                    },
-                    "filter": {
-                        "bool": {
-                            "must": [
-                                {"term": {"source": source}},
-                                {"term": {"msg": "Request"}},
-                                {"term": {"testid": self._id}}
-                            ]
-                        }
-                    }
-                }
-            },
-            "aggs": {
-                "bydst": {
-                    "terms": {
-                        "field": "dst"
-                    }
-                }
-            }
-        })
+        # data = self._es.search(body={
+        #     "size": max_query_results,
+        #     "query": {
+        #         "filtered": {
+        #             "query": {
+        #                 "match_all": {}
+        #             },
+        #             "filter": {
+        #                 "bool": {
+        #                     "must": [
+        #                         {"term": {"source": source}},
+        #                         {"term": {"msg": "Request"}},
+        #                         {"term": {"testid": self._id}}
+        #                     ]
+        #                 }
+        #             }
+        #         }
+        #     },
+        #     "aggs": {
+        #         "bydst": {
+        #             "terms": {
+        #                 "field": "dst"
+        #             }
+        #         }
+        #     }
+        # })
+        s = Search(using=self._es)\
+            .filter('term', source=source, msg='Request')\
+            .query('match_all')
+        # agg = A('terms', field='dst')
+        # s.aggs.bucket('category_terms', agg)
+        data = s.execute()
+        # logger.debug(data.hits)
+        return True
         rates = {}
-        for bucket in data["aggregations"]["bydst"]["buckets"]:
+        for bucket in data["aggs"]["bydst"]["buckets"]:
             dst = bucket["key"]
             req_seq = _get_by('dst', dst, data["hits"]["hits"])
             # req_seq.sort(
