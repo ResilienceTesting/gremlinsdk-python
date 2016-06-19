@@ -36,7 +36,7 @@ Vagrant.configure(2) do |config|
     test -e /etc/bash_completion.d/docker-compose || \\
     curl -sSL https://raw.githubusercontent.com/docker/compose/$(docker-compose --version | awk 'NR==1{print $NF}')/contrib/completion/bash/docker-compose \\
       | sudo tee /etc/bash_completion.d/docker-compose > /dev/null
-    sudo apt-get install python-setuptools
+    sudo apt-get install -y python-setuptools
   EOC
 
   config.vm.provider "virtualbox" do |vb|
