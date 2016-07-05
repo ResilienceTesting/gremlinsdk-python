@@ -4,7 +4,7 @@ description = "Please visit https://github.com/ResilienceTesting/gremlinsdk-pyth
 
 setup(
     name = 'pygremlin',
-    version = '0.1.4',
+    version = '0.1.5',
     description = 'Python SDK for Gremlin framework',
     long_description=description,
     url='https://github.com/ResilienceTesting/gremlinsdk-python',
