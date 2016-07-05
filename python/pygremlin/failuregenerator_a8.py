@@ -43,7 +43,7 @@ def _duration_to_floatsec(s):
 
 class A8FailureGenerator(object):
 
-    def __init__(self, app, header=None, pattern=None, a8_url = None, a8_token=None, a8_tenant_id = None, debug=False):
+    def __init__(self, app, header=None, pattern=None, a8_url = None, a8_token=None, debug=False):
         """
         Create a new failure generator
         @param app ApplicationGraph: instance of ApplicationGraph object
@@ -56,8 +56,7 @@ class A8FailureGenerator(object):
         self.pattern = pattern
         self.a8_url = a8_url
         self.a8_token = a8_token
-        self.a8_tenant_id = a8_tenant_id
-        assert a8_url is not None and a8_token is not None and a8_tenant_id is not None
+        assert a8_url is not None and a8_token is not None
         assert pattern is not None
         assert app is not None
         #some common scenarios
@@ -195,7 +194,8 @@ class A8FailureGenerator(object):
         if self.debug:
             print 'Clearing rules'
         try:
-            resp = requests.put("{}/v1/tenants/{}".format(self.a8_url, self.a8_tenant_id),
+            ## FIXME: When incremental add/update rule support is added to Controller, change this accordingly.
+            resp = requests.put(self.a8_url,
                                 headers = {"Content-Type" : "application/json", "Authorization" : self.a8_token},
                                 data=json.dumps({"filters":{"rules":[]}}))
             resp.raise_for_status()
@@ -211,7 +211,8 @@ class A8FailureGenerator(object):
             payload = {"filters":{"rules":self._queue}}
             if self.header:
                 payload['req_tracking_header'] = self.header
-            resp = requests.put("{}/v1/tenants/{}".format(self.a8_url, self.a8_tenant_id),
+            ## FIXME: When incremental add/update rule support is added to Controller, change this accordingly.
+            resp = requests.put(self.a8_url,
                                 headers = {"Content-Type" : "application/json", "Authorization" : self.a8_token},
                                 data=json.dumps(payload))
             resp.raise_for_status()
