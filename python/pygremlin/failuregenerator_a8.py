@@ -57,7 +57,7 @@ class A8FailureGenerator(object):
         self.a8_url = a8_url
         self.a8_token = a8_token
         self.a8_tenant_id = a8_tenant_id
-        assert a8_url is not None and a8_token is not None and a8_tenant_id is not None
+        assert a8_url is not None and a8_token is not None
         assert pattern is not None
         assert app is not None
         #some common scenarios
@@ -195,9 +195,14 @@ class A8FailureGenerator(object):
         if self.debug:
             print 'Clearing rules'
         try:
-            resp = requests.put("{}/v1/tenants/{}".format(self.a8_url, self.a8_tenant_id),
-                                headers = {"Content-Type" : "application/json", "Authorization" : self.a8_token},
-                                data=json.dumps({"filters":{"rules":[]}}))
+            if self.a8_tenant_id is not None: ##deprecated
+                resp = requests.put("{}/v1/tenants/{}".format(self.a8_url, self.a8_tenant_id),
+                                    headers = {"Content-Type" : "application/json", "Authorization" : self.a8_token},
+                                    data=json.dumps({"filters":{"rules":[]}}))
+            else: ##temporary API. Will change in near future.
+                resp = requests.put(self.a8_url,
+                                    headers = {"Content-Type" : "application/json", "Authorization" : self.a8_token},
+                                    data=json.dumps({"filters":{"rules":[]}}))
             resp.raise_for_status()
         except requests.exceptions.ConnectionError, e:
             print "FAILURE: Could not communicate with control plane %s" % self.a8_url
@@ -211,9 +216,14 @@ class A8FailureGenerator(object):
             payload = {"filters":{"rules":self._queue}}
             if self.header:
                 payload['req_tracking_header'] = self.header
-            resp = requests.put("{}/v1/tenants/{}".format(self.a8_url, self.a8_tenant_id),
-                                headers = {"Content-Type" : "application/json", "Authorization" : self.a8_token},
-                                data=json.dumps(payload))
+            if self.a8_tenant_id is not None: ##deprecated
+                resp = requests.put("{}/v1/tenants/{}".format(self.a8_url, self.a8_tenant_id),
+                                    headers = {"Content-Type" : "application/json", "Authorization" : self.a8_token},
+                                    data=json.dumps(payload))
+            else: ##temporary API. Will change in near future
+                resp = requests.put(self.a8_url,
+                                    headers = {"Content-Type" : "application/json", "Authorization" : self.a8_token},
+                                    data=json.dumps(payload))
             resp.raise_for_status()
         except requests.exceptions.ConnectionError, e:
             print "FAILURE: Could not communicate with control plane %s" % self.a8_url
