@@ -16,6 +16,7 @@ setup(
         'requests',
         'networkx',
         'elasticsearch',
+        'elasticsearch_dsl',
         'isodate'
       ],
     zip_safe = False
