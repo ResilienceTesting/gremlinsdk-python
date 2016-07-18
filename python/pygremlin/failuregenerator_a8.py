@@ -216,11 +216,11 @@ class A8FailureGenerator(object):
             payload = {"filters":{"rules":self._queue}}
             if self.header:
                 payload['req_tracking_header'] = self.header
-            if self.a8_tenant_id is not None: #deprecated API
+            if self.a8_tenant_id is not None: ##deprecated
                 resp = requests.put("{}/v1/tenants/{}".format(self.a8_url, self.a8_tenant_id),
                                     headers = {"Content-Type" : "application/json", "Authorization" : self.a8_token},
                                     data=json.dumps(payload))
-            else: #temporary API. Will change in near future
+            else: ##temporary API. Will change in near future
                 resp = requests.put(self.a8_url,
                                     headers = {"Content-Type" : "application/json", "Authorization" : self.a8_token},
                                     data=json.dumps(payload))
