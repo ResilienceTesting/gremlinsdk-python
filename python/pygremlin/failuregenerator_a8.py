@@ -60,6 +60,7 @@ class A8FailureGenerator(object):
         assert a8_url is not None and a8_token is not None
         assert pattern is not None and header is not None
         assert app is not None
+
         #some common scenarios
         self.functiondict = {
             'delay_requests' : self.delay_requests,
@@ -229,7 +230,7 @@ class A8FailureGenerator(object):
         if 'dest' in rule:
             assert rule['dest'] != ""
 
-        rule['headerpattern'] = rule.pop('headerpattern', '*') or '*'
+        #rule['headerpattern'] = rule.pop('headerpattern', '.*') or '.*'
         rule['bodypattern'] = rule.pop('bodypattern', '*') or '*'
         sources = []
         destinations = []
@@ -238,7 +239,7 @@ class A8FailureGenerator(object):
         else:
             sources.append(rule['source'])
 
-        if 'dest'not in rule:          
+        if 'dest' not in rule:
             destinations = self.app.get_dependencies(rule['source'])
         else:
             destinations.append(rule['dest'])
