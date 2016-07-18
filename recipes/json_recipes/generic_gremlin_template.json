@@ -5,6 +5,7 @@
         "source": "servicename;IF NULL, DEST SHOULD BE NOT NULL",
         "dest": "servicename;IF NULL, DEST SHOULD BE NOT NULL",
         "messagetype": "request|response|publish|subscribe",
+        "trackingheader": "Request tracking header that is propagated globally across all microservice API calls",
         "headerpattern": "regexpattern|*",
         "bodypattern": "regexpattern|*",
         "abortprobability": 0.0,

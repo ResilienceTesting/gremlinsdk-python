@@ -61,15 +61,22 @@ def _duration_to_floatsec(s):
     duration_us = (td.microseconds + (td.seconds + td.days * 24 * 3600) * 10**6)
     return duration_us/(1.0 * 10**6)
 
-def _since(timestamp):
-    return time.time()-timestamp
+# def _since(timestamp):
+#     return time.time()-timestamp
 
 def _check_value_recursively(key, val, haystack):
     """
-    Check if there is key _key_ with value _val_ in the given dictionary.
+    Check **resursively** if there is a given key with a given value in the
+    given dictionary.
+
     ..warning:
         This is geared at JSON dictionaries, so some corner cases are ignored,
         we assume all iterables are either arrays or dicts
+
+    :param key: the key to look for
+    :param val: value to look for
+    :param haystack: the dictionary
+
     """
     if isinstance(haystack, list):
         return any([_check_value_recursively(key, val, l) for l in haystack])
@@ -97,18 +104,24 @@ class A8AssertionChecker(object):
     The asssertion checker
     """
 
-    def __init__(self, host, test_id, header='X-Gremlin-ID', pattern='*', start_time=None, end_time=None, debug=False):
+    def __init__(self, es_host=None, header=None, pattern=None,
+                 start_time=None, end_time=None,
+                 header_field_name='gremlin_header_name',
+                 pattern_field_name='gremlin_header_val', debug=False):
         """
         param host: the elasticsearch host
-        test_id: id of the test to which we are reqstricting the queires
+        header: the gremlin header used while injecting faults
+        pattern: the regex pattern that was used to pick requests
         """
-        self._es = Elasticsearch(hosts=[host])
-        self._id = test_id
+        assert es_host is not None and header is not None and pattern is not None
+        self._es = Elasticsearch(hosts=[es_host])
         self.debug=debug
-        self.header = 'http_'+str(header).lower().replace('-','_')
+        self.header = header
         self.pattern = pattern
         self.start_time=start_time
         self.end_time=end_time
+        self.header_field_name = header_field_name
+        self.pattern_field_name = pattern_field_name
         if self.start_time or self.end_time:
             self.time_range={"@timestamp":{}}
             if self.start_time:
@@ -137,7 +150,8 @@ class A8AssertionChecker(object):
             "query": {
                 "bool": {
                     "must": [
-                        {"match": {self.header: self.pattern}},
+                        {"match": {self.header_field_name: self.header}},
+                        {"prefix": {self.pattern_field_name: self.pattern}}
                     ]
                 }
             }
@@ -188,7 +202,8 @@ class A8AssertionChecker(object):
                     "filter": {
                         "and" : [
                             {"exists": {"field": "status"}},
-                            { "prefix": {self.header: self.pattern}}
+                            { "prefix": {self.header_field_name: self.header}},
+                            { "prefix": {self.pattern_field_name: self.pattern}}
                         ]
                     }
                 }
@@ -225,8 +240,12 @@ class A8AssertionChecker(object):
             return GremlinTestResult(result, errormsg)
 
         for message in data["hits"]["hits"]:
-            if int(message['_source']["status"]) not in status:
-                errormsg = "unexpected status {}".format(message["_source"]["status"])
+            hstatus = int(message['_source']['status'])
+            if hstatus not in status:
+                if hstatus == 499: #nginx 499 indicates unexpected timeout
+                    errormsg = "unexpected connection termination"
+                else:
+                    errormsg = "unexpected status {}".format(message["_source"]["status"])
                 if self.debug:
                     print(errormsg)
                 result = False
@@ -255,7 +274,8 @@ class A8AssertionChecker(object):
                             "must": [
                                 {"term": {"src": source}},
                                 {"prefix": {"dst": dest}},
-                                {"prefix": {self.header: self.pattern}}
+                                { "prefix": {self.header_field_name: self.header}},
+                                { "prefix": {self.pattern_field_name: self.pattern}}
                             ]
                         }
                     }
@@ -266,7 +286,7 @@ class A8AssertionChecker(object):
                 "size": max_query_results,
                 "byid": {
                     "terms": {
-                        "field": self.header,
+                        "field": self.header_field_name,
                     }
                 }
             }
@@ -319,7 +339,8 @@ class A8AssertionChecker(object):
                             "must": [
                                 {"term": {"src": source}},
                                 {"prefix": {"dst": dest}},
-                                {"prefix": {self.header: self.pattern}}
+                                {"prefix": {self.header_field_name: self.header}},
+                                {"prefix": {self.pattern_field_name: self.pattern}}
                             ]
                         }
                     }
@@ -328,7 +349,7 @@ class A8AssertionChecker(object):
             "aggs": {
                 "byid": {
                     "terms": {
-                        "field": self.header if not by_uri else "uri",
+                        "field": self.header_field_name if not by_uri else "uri",
                     }
                 }
             }
@@ -360,7 +381,7 @@ class A8AssertionChecker(object):
         # Now we have to check the timestamps
         for bucket in data["aggregations"]["byid"]["buckets"]:
             req_id = bucket["key"]
-            req_seq = _get_by(self.header, req_id, data["hits"]["hits"])
+            req_seq = _get_by(self.header_field_name, req_id, data["hits"]["hits"])
             req_seq.sort(key=lambda x: int(x['_source']["timestamp_in_ms"]))
             for i in range(len(req_seq) - 1):
                 observed = (req_seq[i + 1]['_source']["timestamp_in_ms"] - req_seq[i]['_source']["timestamp_in_ms"])/1000.0

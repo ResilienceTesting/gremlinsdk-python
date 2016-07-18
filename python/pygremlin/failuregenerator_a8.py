@@ -58,7 +58,7 @@ class A8FailureGenerator(object):
         self.a8_token = a8_token
         self.a8_tenant_id = a8_tenant_id
         assert a8_url is not None and a8_token is not None
-        assert pattern is not None
+        assert pattern is not None and header is not None
         assert app is not None
         #some common scenarios
         self.functiondict = {
@@ -113,45 +113,27 @@ class A8FailureGenerator(object):
 
         trackingheader: <inject faults only on requests that carry this header>
         headerpattern: <For requests carrying the specific header above, match the regex against the header's value>
-        bodypattern: <regex to match against HTTP message body> -- unused
 
         delayprobability: <float, 0.0 to 1.0>
+        delaytime: <string> latency to inject into requests <string, e.g., "10ms", "1s", "5m", "3h", "1s500ms">
+        
+        abortprobability: <float, 0.0 to 1.0>
+        errorcode: <Number> HTTP error code or -1 to reset TCP connection
+
+        bodypattern: <regex to match against HTTP message body> -- unused
         delaydistribution: <uniform|exponential|normal> probability distribution function -- unused
         mangleprobability: <float, 0.0 to 1.0> -- unused
         mangledistribution: <uniform|exponential|normal> probability distribution function -- unused
-        
-        abortprobability: <float, 0.0 to 1.0> -- unused
         abortdistribution: <uniform|exponential|normal> probability distribution function -- unused
-    
-        delaytime: <string> latency to inject into requests <string, e.g., "10ms", "1s", "5m", "3h", "1s500ms">
-        errorcode: <Number> HTTP error code or -1 to reset TCP connection
         searchstring: <string> string to replace when Mangle is enabled -- unused
         replacestring: <string> string to replace with for Mangle fault -- unused
         """
 
-        #The defaults are indicated below
-        # myrule = {
-        #           "source": "",
-        #           "dest": "",
-        #           "messagetype": "request",
-        #           "trackingheader" : "X-Gremlin-ID",
-        #           "headerpattern": "*",
-        #           "bodypattern": "*",
-        #           "delayprobability": 0.0,
-        #           "delaydistribution": "uniform",
-        #           "mangleprobability": 0.0,
-        #           "mangledistribution": "uniform",
-        #           "abortprobability": 0.0,
-        #           "abortdistribution": "uniform",
-        #           "delaytime": "0s",
-        #           "errorcode": -1,
-        #           "searchstring": "",
-        #           "replacestring": ""
-        # }
-
         a8rulekeys = {
                   "source": "source",
                   "dest": "destination",
+                  "trackingheader" : "header",
+                  "headerpattern" : "pattern",
                   "delayprobability": "delay_probability",
                   "abortprobability": "abort_probability",
                   "delaytime": "delay",
@@ -161,6 +143,7 @@ class A8FailureGenerator(object):
         myrule = {
                   "source": "",
                   "destination": "",
+                  "header" : self.header,
                   "pattern": self.pattern,
                   "delay_probability": 0.0,
                   "abort_probability": 0.0,
@@ -178,6 +161,7 @@ class A8FailureGenerator(object):
         #check defaults
         services = self.app.get_services()
         assert myrule["source"] != "" and myrule["destination"] != ""
+        assert myrule["header"] != "" and myrule["pattern"] != ""
         assert myrule["source"] in services and myrule["destination"] in services
         assert myrule['delay_probability'] >0.0 or myrule['abort_probability'] >0.0
         if myrule["delay_probability"] > 0.0:
@@ -214,8 +198,6 @@ class A8FailureGenerator(object):
     def push_rules(self):
         try:
             payload = {"filters":{"rules":self._queue}}
-            if self.header:
-                payload['req_tracking_header'] = self.header
             if self.a8_tenant_id is not None: ##deprecated
                 resp = requests.put("{}/v1/tenants/{}".format(self.a8_url, self.a8_tenant_id),
                                     headers = {"Content-Type" : "application/json", "Authorization" : self.a8_token},

@@ -3,7 +3,8 @@
        {
 	   "scenario" : "delay_requests",
 	   "source" : "Client1",
-	   "dest" : "Server",
+       "dest" : "Server",
+       "trackingheader": "X-Gremlin-Id",
 	   "headerpattern" : "test-delay-*",
 	   "delaytime" : "3s",
 	   "delayprobability" : 0.7,
@@ -12,7 +13,8 @@
        {
 	   "scenario" : "overload_service",
 	   "source" : "Client2",
-	   "dest" : "Server",
+       "dest" : "Server",
+       "trackingheader": "X-Gremlin-Id",
 	   "headerpattern" : "test-overload-*",
 	   "delaytime" : "8s",
 	   "errorcode" : 500,
