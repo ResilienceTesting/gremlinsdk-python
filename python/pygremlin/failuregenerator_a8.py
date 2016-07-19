@@ -185,9 +185,9 @@ class A8FailureGenerator(object):
                                     headers = {"Content-Type" : "application/json", "Authorization" : self.a8_token},
                                     data=json.dumps({"filters":{"rules":[]}}))
             else: ##temporary API. Will change in near future.
-                resp = requests.put(self.a8_url,
-                                    headers = {"Content-Type" : "application/json", "Authorization" : self.a8_token},
-                                    data=json.dumps({"filters":{"rules":[]}}))
+                resp = requests.delete(self.a8_url,
+                                    headers = {"Content-Type" : "application/json",
+                                               "Authorization" : self.a8_token})
             resp.raise_for_status()
         except requests.exceptions.ConnectionError, e:
             print "FAILURE: Could not communicate with control plane %s" % self.a8_url
@@ -204,8 +204,10 @@ class A8FailureGenerator(object):
                                     headers = {"Content-Type" : "application/json", "Authorization" : self.a8_token},
                                     data=json.dumps(payload))
             else: ##temporary API. Will change in near future
-                resp = requests.put(self.a8_url,
-                                    headers = {"Content-Type" : "application/json", "Authorization" : self.a8_token},
+                payload = {"rules": self._queue}
+                resp = requests.post(self.a8_url,
+                                    headers = {"Content-Type" : "application/json",
+                                               "Authorization" : self.a8_token},
                                     data=json.dumps(payload))
             resp.raise_for_status()
         except requests.exceptions.ConnectionError, e:
