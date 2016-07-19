@@ -151,7 +151,7 @@ class A8AssertionChecker(object):
                 "bool": {
                     "must": [
                         {"match": {self.header_field_name: self.header}},
-                        {"prefix": {self.pattern_field_name: self.pattern}}
+                        {"match": {self.pattern_field_name: self.pattern}}
                     ]
                 }
             }

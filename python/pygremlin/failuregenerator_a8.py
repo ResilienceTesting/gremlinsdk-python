@@ -58,6 +58,9 @@ class A8FailureGenerator(object):
         self.a8_token = a8_token
         self.a8_tenant_id = a8_tenant_id
         assert a8_url is not None and a8_token is not None
+        # The failure generator SDK supports only one failure recipe at a given time. A recipe can consist of multiple tests.
+        # The trackingheader and pattern fields in the recipes will be ignored. But multiple failure generators
+        # can be run from different processes. So, the user has to supply the header name and pattern being used.
         assert pattern is not None and header is not None
         assert app is not None
 
@@ -76,33 +79,6 @@ class A8FailureGenerator(object):
             logging.getLogger().setLevel(logging.DEBUG)
             requests_log.setLevel(logging.DEBUG)
             requests_log.propagate = True
-
-    def _notify_proxies(self):
-        return
-        # if self.debug:
-        #     print 'in _notifyProxies'
-        # # TODO: modify this so we can support more than one test at a time
-        # for service in self.app.get_services():
-        #     if self.debug:
-        #         print(service)
-        #     for instance in self.app.get_service_instances(service):
-        #         resp = requests.get("http://{}/gremlin/v1/test/{}".format(instance,self._id))
-        #         resp.raise_for_status()
-
-
-    def start_new_test(self):
-        # self._id = uuid.uuid4().hex
-        # for service in self.app.get_services():
-        #     if self.debug:
-        #         print(service)
-        #     for instance in self.app.get_service_instances(service):
-        #         resp = requests.put("http://{}/gremlin/v1/test/{}".format(instance,self._id))
-        #         resp.raise_for_status()
-        return self._id
-
-    def get_test_id(self):
-        return self._id
-
 
     def add_rule(self, **args):
         """
@@ -133,8 +109,6 @@ class A8FailureGenerator(object):
         a8rulekeys = {
                   "source": "source",
                   "dest": "destination",
-                  "trackingheader" : "header",
-                  "headerpattern" : "pattern",
                   "delayprobability": "delay_probability",
                   "abortprobability": "abort_probability",
                   "delaytime": "delay",
@@ -180,14 +154,9 @@ class A8FailureGenerator(object):
         if self.debug:
             print 'Clearing rules'
         try:
-            if self.a8_tenant_id is not None: ##deprecated
-                resp = requests.put("{}/v1/tenants/{}".format(self.a8_url, self.a8_tenant_id),
-                                    headers = {"Content-Type" : "application/json", "Authorization" : self.a8_token},
-                                    data=json.dumps({"filters":{"rules":[]}}))
-            else: ##temporary API. Will change in near future.
-                resp = requests.delete(self.a8_url,
-                                    headers = {"Content-Type" : "application/json",
-                                               "Authorization" : self.a8_token})
+            resp = requests.delete(self.a8_url,
+                                   headers = {"Content-Type" : "application/json",
+                                              "Authorization" : self.a8_token})
             resp.raise_for_status()
         except requests.exceptions.ConnectionError, e:
             print "FAILURE: Could not communicate with control plane %s" % self.a8_url
@@ -198,22 +167,42 @@ class A8FailureGenerator(object):
     #TODO: Create a plugin model here, to support gremlinproxy and nginx
     def push_rules(self):
         try:
-            payload = {"filters":{"rules":self._queue}}
-            if self.a8_tenant_id is not None: ##deprecated
-                resp = requests.put("{}/v1/tenants/{}".format(self.a8_url, self.a8_tenant_id),
-                                    headers = {"Content-Type" : "application/json", "Authorization" : self.a8_token},
-                                    data=json.dumps(payload))
-            else: ##temporary API. Will change in near future
-                payload = {"rules": self._queue}
-                resp = requests.post(self.a8_url,
-                                    headers = {"Content-Type" : "application/json",
-                                               "Authorization" : self.a8_token},
-                                    data=json.dumps(payload))
+            payload = {"rules": self._queue}
+            resp = requests.post(self.a8_url,
+                                 headers = {"Content-Type" : "application/json",
+                                            "Authorization" : self.a8_token},
+                                 data=json.dumps(payload))
             resp.raise_for_status()
         except requests.exceptions.ConnectionError, e:
             print "FAILURE: Could not communicate with control plane %s" % self.a8_url
             print e
             sys.exit(3)
+
+    # Generate empty rules to just log requests with Gremlin header
+    def _generate_log_rules(self):
+        graph = self.app._get_networkX()
+        ##color edges initially
+        for e in graph.edges():
+                graph[e[0]][e[1]]['color'] = 'black'
+        ##For all covered edges (by rules), color them red
+        for r in self._queue:
+            graph[r['source']][r['destination']]['color']='red'
+        for e in graph.edges(data='color'):
+            if e[2] == 'black': #uncovered edge
+                log_rule = {
+                    "source": e[0],
+                    "destination": e[1],
+                    "header" : self.header,
+                    "pattern": self.pattern,
+                    "delay_probability": 0.0,
+                    "abort_probability": 0.0,
+                    "delay": 0,
+                    "return_code": -1
+                }
+                self._queue.append(log_rule)                
+                if self.debug:
+                    print '%s - %s' % ('log_rule', str(log_rule))
+
 
     def _generate_rules(self, rtype, **args):
         rule = args.copy()
@@ -283,7 +272,7 @@ class A8FailureGenerator(object):
         rule['delaytime'] = rule.pop('delaytime', "10s") or "10s"
         rule['errorcode'] = rule.pop("errorcode", 503) or 503
         rule['messagetype'] = rule.pop('messagetype', 'request') or 'request'
-        rule['headerpattern'] = rule.pop('headerpattern', '*') or '*'
+        #rule['headerpattern'] = rule.pop('headerpattern', '*') or '*'
         rule['bodypattern'] = rule.pop('bodypattern','*') or '*'
 
         sources = []
@@ -342,4 +331,5 @@ class A8FailureGenerator(object):
         assert isinstance(gremlins, dict) and 'gremlins' in gremlins
         for gremlin in gremlins['gremlins']:
             self.setup_failure(**gremlin)
+        self._generate_log_rules()
         self.push_rules()
