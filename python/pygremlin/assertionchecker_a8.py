@@ -107,7 +107,7 @@ class A8AssertionChecker(object):
     def __init__(self, es_host=None, header=None, pattern=None,
                  start_time=None, end_time=None,
                  header_field_name='gremlin_header_name',
-                 pattern_field_name='gremlin_header_val', debug=False):
+                 pattern_field_name='gremlin_header_val', index="", debug=False):
         """
         param host: the elasticsearch host
         header: the gremlin header used while injecting faults
@@ -130,6 +130,15 @@ class A8AssertionChecker(object):
                 self.time_range["@timestamp"]["lte"]=self.end_time
         else:
             self.time_range = None
+
+        if index is None or index == "":
+            self.index = [ "_all" ]
+        elif type(index) == str:
+            self.index = [ index ]
+        else:
+            self.index = index
+        assert(type(self.index) == list)
+
         self.functiondict = {
             'bounded_response_time' : self.check_bounded_response_time,
             'http_success_status' : self.check_http_success_status,
@@ -170,7 +179,7 @@ class A8AssertionChecker(object):
         source = kwargs['source']
         max_latency = _duration_to_floatsec(kwargs['max_latency'])
         query_body = self._get_query_object(source, dest)
-        data = self._es.search(index="nginx", body=query_body)
+        data = self._es.search(index=self.index, body=query_body)
         if self.debug:
             pprint.pprint(data)
 
@@ -192,7 +201,7 @@ class A8AssertionChecker(object):
 
     #This isn't working with elasticsearch 2.0+. Neither does regexp
     def check_http_success_status(self, **kwargs):
-        data = self._es.search(index="nginx", body={
+        data = self._es.search(index=self.index, body={
             "size": max_query_results,
             "query": {
                 "filtered": {
@@ -231,7 +240,7 @@ class A8AssertionChecker(object):
         if isinstance(status, int):
             status = [status]
         query_body = self._get_query_object(source, dest)
-        data = self._es.search(index="nginx", body=query_body)
+        data = self._es.search(index=self.index, body=query_body)
         result = True
         errormsg = ""
         if not self._check_non_zero_results(data):
@@ -262,7 +271,7 @@ class A8AssertionChecker(object):
         # TODO: Does the proxy support logging of instances so that grouping by instance is possible?
 
         # Fetch requests for src->dst
-        data = self._es.search(index="nginx", body={
+        data = self._es.search(index=self.index, body={
             "size": max_query_results,
             "query": {
                 "filtered": {
@@ -327,7 +336,7 @@ class A8AssertionChecker(object):
         if self.debug:
             print 'in bounded retries (%s, %s, %s)' % (source, dest, retries)
 
-        data = self._es.search(index="nginx", body={
+        data = self._es.search(index=self.index, body={
             "size": max_query_results,
             "query": {
                 "filtered": {
