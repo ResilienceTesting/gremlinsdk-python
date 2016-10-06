@@ -5,7 +5,7 @@
 	    { "name": "Server"}
     ],
     "dependencies" : {
-	    "Client1" : ["Server"]
+	    "Client1" : ["Server"],
 	    "Client2" : ["Server"]
     }
 }
