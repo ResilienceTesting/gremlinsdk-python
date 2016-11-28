@@ -80,7 +80,7 @@ instead of randomly injecting failures without any useful validation.
 cd gremlinsdk-python/exampleapp; ./runapps.sh
 ```
 
-Open Postman and access the URL http://localhost:9180/productpage to make sure the page is up.
+Open Postman and access the URL http://localhost:9080/productpage to make sure the page is up.
 
 
 #### Step 2: Gremlin recipe - setting up failures
@@ -151,7 +151,7 @@ fault injection and failure handling.
 Go back to Postman. Add ```X-Gremlin-ID``` to the header field and set
 ```testUser-timeout-1``` as the value for the header.
 
-Load the page (http://localhost:9180/productpage) and you should see that
+Load the page (http://localhost:9080/productpage) and you should see that
 the page takes *more than 8 seconds to load*.
 
 This page load is an _example of poor handling of the failure
