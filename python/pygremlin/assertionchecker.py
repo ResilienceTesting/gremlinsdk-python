@@ -288,6 +288,9 @@ class AssertionChecker(object):
         """
         # TODO: Does the proxy support logging of instances so that grouping by instance is possible?
 
+        if self.debug:
+            print 'in check_at_most_requests (%s, %s, %s, %s)' % (source, dest, num_requests, self._id)
+
         # Fetch requests for src->dst
         data = self._es.search(body={
             "size": max_query_results,
@@ -311,7 +314,7 @@ class AssertionChecker(object):
             },
             "aggs": {
                 # Need size, otherwise only top buckets are returned
-                "size": max_query_results,
+                #"size": max_query_results,
                 "byid": {
                     "terms": {
                         "field": "reqID",
@@ -395,7 +398,7 @@ class AssertionChecker(object):
 
         # Check number of req first
         for bucket in data["aggregations"]["byid"]["buckets"]:
-            if bucket["doc_count"] > (num + 1):
+            if bucket["doc_count"] > (retries + 1):
                 errormsg = "{} -> {} - expected {} retries, but found {} retries for request {}".format(
                     source, dest, retries, bucket['doc_count']-1, bucket['key'])
                 result = False
@@ -423,6 +426,7 @@ class AssertionChecker(object):
                     break
         return GremlinTestResult(result, errormsg)
 
+    #remove_retries is a boolean argument. Set to true if reties are attempted inside circuit breaker logic, else set to false
     def check_circuit_breaker(self, **kwargs): #dest, closed_attempts, reset_time, halfopen_attempts):
         assert 'dest' in kwargs and 'source' in kwargs and 'closed_attempts' in kwargs and 'reset_time' in kwargs and 'headerprefix' in kwargs
 
@@ -435,6 +439,11 @@ class AssertionChecker(object):
             halfopen_attempts = 1
         else:
             halfopen_attempts = kwargs['halfopen_attempts']
+        if 'remove_retries' not in kwargs:
+            remove_retries = False
+        else:
+            remove_retries = kwargs['remove_retries']
+
 
         # TODO: this has been tested for thresholds but not for recovery
         # timeouts
@@ -450,7 +459,8 @@ class AssertionChecker(object):
                             "must": [
                                 {"term": {"source": source}},
                                 {"term": {"dest": dest}},
-                                {"prefix": {"reqID": headerprefix}}
+                                {"prefix": {"reqID": headerprefix}},
+                                {"term": {"testid": self._id}}
                             ],
                             "should": [
                                 {"term": {"msg": "Request"}},
@@ -469,6 +479,12 @@ class AssertionChecker(object):
             }
         })
 
+        if(self.debug):
+            #pprint.pprint(data)
+            pprint.pprint(data["aggregations"]["bysource"]["buckets"])
+
+        
+
         result = True
         errormsg = ""
         if not self._check_non_zero_results(data):
@@ -483,6 +499,20 @@ class AssertionChecker(object):
         for bucket in data["aggregations"]["bysource"]["buckets"]:
             req_seq = _get_by("source", source, data["hits"]["hits"])
             req_seq.sort(key=lambda x: isodate.parse_datetime(x['_source']["ts"]))
+
+            #Remove duplicate retries
+            if(remove_retries):
+                req_seq_dup = []
+                for i in range(len(req_seq)):
+                    if(i == len(req_seq)-1):
+                        req_seq_dup.append(req_seq[i])
+
+
+                    elif(req_seq[i]['_source']['reqID'] != req_seq[i+1]['_source']['reqID']):
+                        req_seq_dup.append(req_seq[i])
+
+                req_seq = req_seq_dup
+
             failures = 0
             circuit_open_ts = None
             successes = 0
@@ -490,16 +520,19 @@ class AssertionChecker(object):
             for req in req_seq:
                 if circuit_mode is "open": #circuit_open_ts is not None:
                     req_spacing = isodate.parse_datetime(req['_source']["ts"]) - circuit_open_ts
+
                     # Restore to half-open
                     if req_spacing >= reset_time:
                         circuit_open_ts = None
                         circuit_mode = "half-open"
-                        print "%d: open -> half-open" %(failures +1)
+                        if self.debug:
+                            print "%d: open -> half-open" %(failures +1)
                         failures = 0 #-1
                     else:  # We are in open state
                         # this is an assertion fail, no requests in open state
                         if req['_source']["msg"] == "Request":
-                            print "%d: open -> failure" % (failures + 1)
+                            if self.debug:
+                                print "%d: open -> failure" % (failures + 1)
                             if self.debug:
                                 print "Service %s failed to trip circuit breaker" % source
                             errormsg = "{} -> {} - new request was issued at ({}s) before reset_timer ({}s)expired".format(source,
@@ -511,36 +544,186 @@ class AssertionChecker(object):
                 if circuit_mode is "half-open":
                     if ((req['_source']["msg"] == "Response" and req['_source']["status"] != 200)
                         or (req['_source']["msg"] == "Request" and ("abort" in req['_source']["actions"]))):
-                        print "half-open -> open"
+                        if self.debug:
+                            print "half-open -> open"
                         circuit_mode = "open"
                         circuit_open_ts = isodate.parse_datetime(req['_source']["ts"])
                         successes = 0
                     elif (req['_source']["msg"] == "Response" and req['_source']["status"] == 200):
                         successes += 1
-                        print "half-open -> half-open (%d)" % successes
+                        if self.debug:
+                            print "half-open -> half-open (%d)" % successes
                         # If over threshold, return to closed state
                         if successes > halfopen_attempts:
-                            print "half-open -> closed"
+                            if self.debug:
+                                print "half-open -> closed"
                             circuit_mode = "closed"
                             failures = 0
                             circuit_open_ts = None
                 #else:
                 elif circuit_mode is "closed":
+
                     if ((req['_source']["msg"] == "Response" and req['_source']["status"] != 200)
                         or (req['_source']["msg"] == "Request" and len(req['_source']["actions"]) > 0)):
                         # Increment failures
                         failures += 1
-                        print "%d: closed->closed" % failures
+                        if self.debug:
+                            print "%d: closed->closed" % failures
                         # print(failures)
                         # Trip CB, go to open state
                         if failures > closed_attempts:
-                            print "%d: closed->open" % failures
+                            if self.debug:
+                                print "%d: closed->open" % failures
                             circuit_open_ts = isodate.parse_datetime(req['_source']["ts"])
                             successes = 0
                             circuit_mode = "open"
 
         # pprint.pprint(data)
         return GremlinTestResult(result, errormsg)
+
+
+    def check_num_requests(self, source, dest, num_requests, **kwargs):
+        """
+        Check that source service sent at exactly num_request to the dest service, in total, for all request headers
+        :param source the source service name
+        :param dest the destination service name
+        :param num_requests the maximum number of requests that we expect
+        :return:
+        """
+
+        if self.debug:
+            print 'in check_num_requests (%s, %s, %s, %s)' % (source, dest, num_requests, self._id)
+
+        # Fetch requests for src->dst
+        data = self._es.search(body={
+            "size": max_query_results,
+            "query": {
+                "filtered": {
+                    "query": {
+                        "match_all": {}
+                    },
+                    "filter": {
+                        "bool": {
+                            "must": [
+                                {"term": {"msg": "Request"}},
+                                {"term": {"source": source}},
+                                {"term": {"dest": dest}},
+                                {"term": {"protocol": "http"}},
+                                {"term": {"testid": self._id}}
+                            ]
+                        }
+                    }
+                }
+            },
+            "aggs": {
+                "byid": {
+                    "terms": {
+                        "field": "testid",
+                    }
+                }
+            }
+        })
+
+        if self.debug:
+            pprint.pprint(data)
+            pprint.pprint(data["aggregations"])
+
+        result = True
+        errormsg = ""
+        if not self._check_non_zero_results(data):
+            result = False
+            errormsg = "No log entries found"
+            return GremlinTestResult(result, errormsg)
+
+        # Check number of requests in each bucket
+        for bucket in data["aggregations"]["byid"]["buckets"]:
+            if bucket["doc_count"] is not (num_requests):
+                errormsg = "{} -> {} - expected {} requests, but found {} "\
+                         "requests for id {}".format(
+                            source, dest, num_requests, bucket['doc_count'],
+                            bucket['key'])
+                result = False
+                if self.debug:
+                    print errormsg
+                return GremlinTestResult(result, errormsg)
+        return GremlinTestResult(result, errormsg)
+
+
+
+    def check_bulkhead(self, source, dependencies, slow_dest, rate):
+        """
+	Asserts bulkheads by ensuring that the rate of requests to other dests is kept when slow_dest is slow
+        :param source the source service name
+        :param dependencies list of dependency names of source
+        :param slow_dest the name of the dependency that independence is being tested for
+        :param rate number of requests per second that should occur to each dependency
+        :return:
+        """
+        #Remove slow dest
+        dependencies.remove(slow_dest)
+
+
+        s =str(float(1)/float(rate))
+        max_spacing = _parse_duration(s+'s')
+
+           
+        
+        for dest in dependencies:
+            data = self._es.search(body={
+                "size": max_query_results,
+                "query": {
+                    "filtered": {
+                        "query": {
+                            "match_all": {}
+                        },
+                        "filter": {
+                            "bool": {
+                                "must": [
+                                    {"term": {"msg": "Request"}},
+                                    {"term": {"source": source}},
+                                    {"term": {"dest": dest}},
+                                    {"term": {"testid": self._id}}
+                                ]
+                            }
+                        }
+                    }
+                }
+            })
+
+            if self.debug:
+                pprint.pprint(data)
+
+            result = True
+            errormsg = ""
+            if not self._check_non_zero_results(data):
+                result = False
+                errormsg = "No log entries found"
+                return GremlinTestResult(result, errormsg)
+
+            req_seq = _get_by("source", source, data["hits"]["hits"])
+            req_seq.sort(key=lambda x: isodate.parse_datetime(x['_source']["ts"]))
+
+            last_request = isodate.parse_datetime(req_seq[0]['_source']["ts"])
+
+            for req in req_seq:
+                req_spacing = isodate.parse_datetime(req['_source']["ts"]) - last_request
+                last_request = isodate.parse_datetime(req['_source']["ts"])
+                if self.debug:
+                    print "spacing", req_spacing, max_spacing
+                if req_spacing > max_spacing:
+
+                    errormsg = "{} -> {} - new request was issued at ({}s) but max spacing should be ({}s)".format(source,
+                                                                                                                     dest,
+                                                                                                                     req_spacing,
+                                                                                                                     max_spacing) 
+                    result = False
+                    return GremlinTestResult(result, errormsg)                
+                
+
+                
+
+        return GremlinTestResult(result, errormsg)
+
 
     def check_assertion(self, name=None, **kwargs):
         # assertion is something like {"name": "bounded_response_time",
@@ -549,8 +732,10 @@ class AssertionChecker(object):
 
         assert name is not None and name in self.functiondict
         gremlin_test_result = self.functiondict[name](**kwargs)
+
         if self.debug and not gremlin_test_result.success:
             print gremlin_test_result.errormsg
+
 
         return AssertionResult(name, str(kwargs), gremlin_test_result.success, gremlin_test_result.errormsg)
 
@@ -564,10 +749,12 @@ class AssertionChecker(object):
 
         retval = None
         retlist = []
+
         for assertion in checklist['checks']:
             retval = self.check_assertion(**assertion)
             retlist.append(retval)
             if not retval.success and not all:
+                print "Error message:", retval[3]
                 return retlist
 
         return retlist
